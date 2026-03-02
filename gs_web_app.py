@@ -647,17 +647,22 @@ elif mode == "User Management":
 
     conn.close()
 
+# ========================================================
+# INSERT QUESTION
+# ========================================================
 
 elif mode == "Insert Question":
 
     st.subheader("➕ Insert New Question")
 
+    # Initialize session state safely
     if "insert_question" not in st.session_state:
         st.session_state.insert_question = ""
 
     if "insert_answer" not in st.session_state:
         st.session_state.insert_answer = ""
 
+    # Input fields
     question = st.text_area(
         "Enter Question",
         key="insert_question"
@@ -669,35 +674,67 @@ elif mode == "Insert Question":
     )
 
     subject = st.text_input("Subject")
-    difficulty = st.selectbox("Difficulty", [1, 2, 3])
 
-    if st.button("Save Question"):
+    # 🔹 Difficulty shown as text
+    difficulty_label = st.selectbox(
+        "Difficulty",
+        ["Easy", "Moderate", "Difficult"]
+    )
 
-        if not question.strip() or not answer.strip() or not subject.strip():
-            st.error("All fields required.")
-        else:
-            conn = get_connection()
-            cur = conn.cursor()
+    difficulty_map = {
+        "Easy": 1,
+        "Moderate": 2,
+        "Difficult": 3
+    }
 
-            cur.execute("""
-                INSERT INTO quiz (subject, question, answer, difficulty)
-                VALUES (?, ?, ?, ?)
-            """, (
-                subject.strip(),
-                question.strip(),
-                answer.strip(),
-                difficulty
-            ))
+    difficulty = difficulty_map[difficulty_label]
 
-            conn.commit()
-            conn.close()
+    col1, col2 = st.columns(2)
 
-            st.success("Question added successfully.")
+    # ====================================================
+    # SAVE BUTTON
+    # ====================================================
+    with col1:
+        if st.button("💾 Save Question"):
 
-            # Reset fields safely
-            del st.session_state["insert_question"]
-            del st.session_state["insert_answer"]
+            if not question.strip() or not answer.strip() or not subject.strip():
+                st.error("All fields required.")
+            else:
+                with get_connection() as conn:
+                    cur = conn.cursor()
+
+                    cur.execute("""
+                        INSERT INTO quiz (subject, question, answer, difficulty)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        subject.strip(),
+                        question.strip(),
+                        answer.strip(),
+                        difficulty
+                    ))
+
+                    conn.commit()
+
+                st.success("Question added successfully.")
+
+                # Reset fields after save
+                st.session_state.insert_question = ""
+                st.session_state.insert_answer = ""
+                st.rerun()
+
+    # ====================================================
+    # RESET BUTTON
+    # ====================================================
+    with col2:
+        if st.button("🔄 Reset Fields"):
+
+            st.session_state.insert_question = ""
+            st.session_state.insert_answer = ""
             st.rerun()
+
+# ========================================================
+# IMPORT FROM TXT
+# ========================================================
 
 elif mode == "Import from TXT":
 
@@ -705,7 +742,19 @@ elif mode == "Import from TXT":
 
     uploaded_file = st.file_uploader("Upload TXT File", type=["txt"])
 
-    default_difficulty = st.selectbox("Default Difficulty", [1, 2, 3])
+    # 🔹 Difficulty shown as text
+    difficulty_label = st.selectbox(
+        "Difficulty",
+        ["Easy", "Moderate", "Difficult"]
+    )
+
+    difficulty_map = {
+        "Easy": 1,
+        "Moderate": 2,
+        "Difficult": 3
+    }
+
+    difficulty = difficulty_map[difficulty_label]
 
     if uploaded_file is not None:
 
@@ -752,6 +801,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
