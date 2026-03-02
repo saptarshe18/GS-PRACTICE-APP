@@ -257,6 +257,18 @@ def toggle_mark(si_no, current_status):
 
 if mode in ["Subject Practice", "Mixed Practice"]:
 
+    if "session_easy" not in st.session_state:
+    st.session_state.session_easy = 0
+
+    if "session_moderate" not in st.session_state:
+        st.session_state.session_moderate = 0
+
+    if "session_difficult" not in st.session_state:
+        st.session_state.session_difficult = 0
+
+    if "show_summary" not in st.session_state:
+        st.session_state.show_summary = False
+
     if "practice_active" not in st.session_state:
         st.session_state.practice_active = False
 
@@ -376,7 +388,15 @@ if mode in ["Subject Practice", "Mixed Practice"]:
         update_read_count(si_no, subject)
         st.session_state.reviewed += 1
 
-    if st.button("Next"):
+        # Difficulty tracking
+        if diff == 1:
+            st.session_state.session_easy += 1
+        elif diff == 2:
+            st.session_state.session_moderate += 1
+        elif diff == 3:
+            st.session_state.session_difficult += 1
+
+        if st.button("Next"):
         st.session_state.index += 1
         st.rerun()
 
@@ -384,6 +404,33 @@ if mode in ["Subject Practice", "Mixed Practice"]:
         st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
         st.session_state.practice_active = False
         st.session_state.reviewed = 0
+        st.rerun()
+
+# ============================================================
+# PRACTICE SUMMARY SCREEN
+# ============================================================
+
+if st.session_state.get("show_summary", False):
+
+    st.markdown("## 📊 Practice Session Summary")
+
+    st.metric("Total Questions Reviewed", st.session_state.reviewed)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Easy", st.session_state.session_easy)
+    col2.metric("Moderate", st.session_state.session_moderate)
+    col3.metric("Difficult", st.session_state.session_difficult)
+
+    if st.button("Start New Session"):
+
+        # Reset session data
+        st.session_state.practice_active = False
+        st.session_state.reviewed = 0
+        st.session_state.session_easy = 0
+        st.session_state.session_moderate = 0
+        st.session_state.session_difficult = 0
+        st.session_state.show_summary = False
+
         st.rerun()
 
 # ============================================================
@@ -705,6 +752,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
