@@ -173,17 +173,60 @@ mode = st.sidebar.selectbox(
 # COMMON FUNCTIONS
 # ============================================================
 
-def get_questions():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT si_no, subject, question, answer, difficulty,
-               COALESCE(reading_times,0), COALESCE(is_marked,0)
-        FROM quiz
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    random.shuffle(rows)
+def get_questions(subject=None, difficulty=None, order="random"):
+    """
+    Fetch questions based on:
+    - subject (None = all subjects)
+    - difficulty (None = all levels)
+    - order: random / most / least
+    """
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        query = """
+            SELECT si_no,
+                   subject,
+                   question,
+                   answer,
+                   difficulty,
+                   COALESCE(reading_times,0),
+                   COALESCE(is_marked,0)
+            FROM quiz
+        """
+
+        conditions = []
+        params = []
+
+        # ---------------- SUBJECT FILTER ----------------
+        if subject:
+            conditions.append("subject = ?")
+            params.append(subject)
+
+        # ---------------- DIFFICULTY FILTER ----------------
+        if difficulty:
+            conditions.append("difficulty = ?")
+            params.append(difficulty)
+
+        # Apply WHERE if needed
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        # ---------------- ORDER TYPE ----------------
+        if order == "most":
+            query += " ORDER BY reading_times DESC"
+
+        elif order == "least":
+            query += " ORDER BY reading_times ASC"
+
+        # Execute query
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+    # Random shuffle done in Python
+    if order == "random":
+        random.shuffle(rows)
+
     return rows
 
 def update_read_count(si_no, subject):
@@ -209,32 +252,110 @@ def toggle_mark(si_no, current_status):
     conn.close()
 
 # ============================================================
-# PRACTICE MODE
+# PRACTICE MODE (Subject + Mixed Unified Engine)
 # ============================================================
 
 if mode in ["Subject Practice", "Mixed Practice"]:
 
-    # Initialize session flags
     if "practice_active" not in st.session_state:
         st.session_state.practice_active = False
 
     if "reviewed" not in st.session_state:
         st.session_state.reviewed = 0
 
-    # ---------------- START BUTTON ----------------
+    subject = None
+    difficulty = None
+    order_type = "random"
+
+    # ========================================================
+    # SUBJECT FILTER (Only in Subject Practice)
+    # ========================================================
+
+    if mode == "Subject Practice":
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT subject, COUNT(*)
+                FROM quiz
+                GROUP BY subject
+            """)
+            subject_counts = dict(cur.fetchall())
+
+        subject_options = [
+            f"{sub} ({subject_counts.get(sub,0)})"
+            for sub in subject_counts.keys()
+        ]
+
+        selected_display = st.selectbox("Select Subject", subject_options)
+        subject = selected_display.rsplit(" (", 1)[0]
+
+    # ========================================================
+    # DIFFICULTY FILTER (Both Modes)
+    # ========================================================
+
+    difficulty_option = st.selectbox(
+        "Difficulty",
+        ["All", "Easy", "Moderate", "Difficult"]
+    )
+
+    difficulty_map = {
+        "Easy": 1,
+        "Moderate": 2,
+        "Difficult": 3
+    }
+
+    if difficulty_option != "All":
+        difficulty = difficulty_map[difficulty_option]
+
+    # ========================================================
+    # QUESTION TYPE (Both Modes)
+    # ========================================================
+
+    order_option = st.selectbox(
+        "Question Type",
+        ["Random", "Most Read", "Least Read"]
+    )
+
+    order_map = {
+        "Random": "random",
+        "Most Read": "most",
+        "Least Read": "least"
+    }
+
+    order_type = order_map[order_option]
+
+    # ========================================================
+    # START BUTTON
+    # ========================================================
 
     if not st.session_state.practice_active:
+
         if st.button("▶ Start Practice"):
-            st.session_state.questions = get_questions()
+
+            st.session_state.questions = get_questions(
+                subject=subject,
+                difficulty=difficulty,
+                order=order_type
+            )
+
             st.session_state.index = 0
             st.session_state.reviewed = 0
             st.session_state.practice_active = True
             st.rerun()
+
         st.stop()
 
-    # ---------------- ACTIVE SESSION ----------------
+    # ========================================================
+    # ACTIVE SESSION
+    # ========================================================
 
     questions = st.session_state.questions
+
+    if not questions:
+        st.warning("No questions found with selected filters.")
+        st.session_state.practice_active = False
+        st.stop()
 
     if st.session_state.index >= len(questions):
         st.success("Session Complete")
@@ -247,36 +368,17 @@ if mode in ["Subject Practice", "Mixed Practice"]:
     st.info(f"Reviewed This Session: {st.session_state.reviewed}")
     st.write(f"**Question ID:** {si_no}")
     st.write(f"**Subject:** {subject}")
+    st.write(f"**Reads:** {reads}")
     st.write(question)
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if marked:
-            if st.button("❌ Unmark"):
-                toggle_mark(si_no, marked)
-                st.rerun()
-        else:
-            if st.button("⭐ Mark"):
-                toggle_mark(si_no, marked)
-                st.rerun()
-
-    # Prevent multiple read increments
-    if "answer_shown" not in st.session_state:
-        st.session_state.answer_shown = False
-
-    if st.button("Show Answer") and not st.session_state.answer_shown:
+    if st.button("Show Answer"):
         st.success(answer)
         update_read_count(si_no, subject)
         st.session_state.reviewed += 1
-        st.session_state.answer_shown = True
 
     if st.button("Next"):
         st.session_state.index += 1
-        st.session_state.answer_shown = False
         st.rerun()
-
-    # ---------------- END BUTTON ----------------
 
     if st.button("⏹ End Practice"):
         st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
@@ -603,6 +705,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
