@@ -153,12 +153,14 @@ if st.sidebar.button("Logout"):
 mode = st.sidebar.selectbox(
     "Mode",
     [
+        "Live Dashboard",
         "Subject Practice",
         "Mixed Practice",
         "Exam Mode",
+        "Insert Question",
+        "Import from TXT",
         "Marked Questions",
         "Analytics",
-        "Live Dashboard",
         "User Management"
     ]
 )
@@ -373,19 +375,25 @@ elif mode == "Live Dashboard":
     cur.execute("SELECT COUNT(*) FROM quiz")
     total_questions = cur.fetchone()[0]
 
-    cur.execute("SELECT SUM(reading_times) FROM quiz")
-    total_reads = cur.fetchone()[0] or 0
+    # Total Reads (USER SPECIFIC)
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM practice_log
+        WHERE user_id = ?
+    """, (st.session_state.user_id,))
+    user_total_reads = cur.fetchone()[0] or 0
 
     cur.execute("SELECT subject, COUNT(*) FROM quiz GROUP BY subject")
     subject_counts = cur.fetchall()
 
     cur.execute("""
-        SELECT subject, SUM(reading_times)
-        FROM quiz
-        GROUP BY subject
-        ORDER BY SUM(reading_times) DESC
-    """)
-    subject_leaderboard = cur.fetchall()
+    SELECT subject, COUNT(*)
+    FROM practice_log
+    WHERE user_id = ?
+    GROUP BY subject
+    ORDER BY COUNT(*) DESC
+""", (st.session_state.user_id,))
+subject_leaderboard = cur.fetchall()
 
     conn.close()
 
@@ -454,5 +462,112 @@ elif mode == "User Management":
         st.success("User created")
 
     conn.close()
+
+
+elif mode == "Insert Question":
+
+    st.subheader("➕ Insert New Question")
+
+    if "insert_question" not in st.session_state:
+        st.session_state.insert_question = ""
+
+    if "insert_answer" not in st.session_state:
+        st.session_state.insert_answer = ""
+
+    question = st.text_area(
+        "Enter Question",
+        key="insert_question"
+    )
+
+    answer = st.text_area(
+        "Enter Answer",
+        key="insert_answer"
+    )
+
+    subject = st.text_input("Subject")
+    difficulty = st.selectbox("Difficulty", [1, 2, 3])
+
+    if st.button("Save Question"):
+
+        if not question.strip() or not answer.strip() or not subject.strip():
+            st.error("All fields required.")
+        else:
+            conn = get_connection()
+            cur = conn.cursor()
+
+            cur.execute("""
+                INSERT INTO quiz (subject, question, answer, difficulty)
+                VALUES (?, ?, ?, ?)
+            """, (
+                subject.strip(),
+                question.strip(),
+                answer.strip(),
+                difficulty
+            ))
+
+            conn.commit()
+            conn.close()
+
+            st.success("Question added successfully.")
+
+            # Reset fields safely
+            del st.session_state["insert_question"]
+            del st.session_state["insert_answer"]
+            st.rerun()
+
+elif mode == "Import from TXT":
+
+    st.subheader("📂 Import Questions from TXT")
+
+    uploaded_file = st.file_uploader("Upload TXT File", type=["txt"])
+
+    default_difficulty = st.selectbox("Default Difficulty", [1, 2, 3])
+
+    if uploaded_file is not None:
+
+        file_content = uploaded_file.read().decode("utf-8")
+        lines = [l.strip() for l in file_content.split("\n") if l.strip()]
+
+        inserted = 0
+        current_subject = "General"
+
+        if st.button("Import Now"):
+
+            conn = get_connection()
+            cur = conn.cursor()
+
+            for line in lines:
+
+                # Subject line
+                if line.startswith("* "):
+                    current_subject = line[2:].strip()
+                    continue
+
+                # Q --> A format
+                if "-->" in line:
+                    question, answer = line.split("-->", 1)
+                    question = question.strip()
+                    answer = answer.strip()
+                else:
+                    continue
+
+                if question and answer:
+                    cur.execute("""
+                        INSERT INTO quiz (subject, question, answer, difficulty)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        current_subject,
+                        question,
+                        answer,
+                        default_difficulty
+                    ))
+                    inserted += 1
+
+            conn.commit()
+            conn.close()
+
+            st.success(f"{inserted} questions imported successfully.")
+            st.rerun()
+
 
 
