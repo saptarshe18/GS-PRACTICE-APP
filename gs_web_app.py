@@ -134,16 +134,35 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def login_user(username, password):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, password_hash, role FROM users WHERE username=?", (username,))
-    row = cur.fetchone()
-    conn.close()
 
-    if row:
-        user_id, stored_hash, role = row
-        if stored_hash == hash_password(password):
-            return user_id, role
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, password_hash, role
+            FROM users
+            WHERE username = ?
+        """, (username,))
+
+        row = cur.fetchone()
+
+        if row and row[1] == hash_password(password):
+
+            # 🔥 Update active + last_active
+            cur.execute("""
+                UPDATE users
+                SET is_active = 1,
+                    last_active = ?
+                WHERE id = ?
+            """, (
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                row[0]
+            ))
+
+            conn.commit()
+
+            return row[0], row[2]
+
     return None, None
 
 # ============================================================
@@ -183,6 +202,22 @@ if st.session_state.user_id is None:
 st.sidebar.success(f"Logged in as: {st.session_state.role}")
 
 if st.sidebar.button("Logout"):
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE users
+            SET is_active = 0,
+                last_active = ?
+            WHERE id = ?
+        """, (
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            st.session_state.user_id
+        ))
+
+        conn.commit()
+
     st.session_state.clear()
     st.rerun()
 
@@ -438,9 +473,8 @@ if mode in ["Subject Practice", "Mixed Practice"]:
         st.rerun()
 
     if st.button("⏹ End Practice"):
-        st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
         st.session_state.practice_active = False
-        st.session_state.reviewed = 0
+        st.session_state.show_summary = True
         st.rerun()
 
 # ============================================================
@@ -1019,6 +1053,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
