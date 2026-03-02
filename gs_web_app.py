@@ -72,8 +72,12 @@ def upgrade_users_table():
         existing_columns = [row[1] for row in cur.fetchall()]
 
         # Add is_active if missing
-        if "user_id" not in existing_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN user_id INTEGER DEFAULT 0")
+        if "is_active" not in existing_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 0")
+
+        # Add last_active if missing
+        if "last_active" not in existing_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN last_active TEXT")
 
         conn.commit()
 
@@ -87,12 +91,8 @@ def upgrade_practice_table():
         existing_columns = [row[1] for row in cur.fetchall()]
 
         # Add is_active if missing
-        if "is_active" not in existing_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 0")
-
-        # Add last_active if missing
-        if "last_active" not in existing_columns:
-            cur.execute("ALTER TABLE users ADD COLUMN last_active TEXT")
+        if "user_id" not in existing_columns:
+            cur.execute("ALTER TABLE practice_log ADD COLUMN user_id INTEGER DEFAULT 0")
 
         conn.commit()
 
@@ -1021,6 +1021,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
