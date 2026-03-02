@@ -372,18 +372,11 @@ elif mode == "Live Dashboard":
     conn = get_connection()
     cur = conn.cursor()
 
+    # Total Questions
     cur.execute("SELECT COUNT(*) FROM quiz")
     total_questions = cur.fetchone()[0]
 
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    st.write(cur.fetchall())
-
-    st.write(DB_FILE)
-
-    st.write("User ID:", st.session_state.user_id)
-    
-
-    # Total Reads (USER SPECIFIC)
+    # USER SPECIFIC TOTAL READS
     cur.execute("""
         SELECT COUNT(*)
         FROM practice_log
@@ -391,9 +384,7 @@ elif mode == "Live Dashboard":
     """, (st.session_state.user_id,))
     user_total_reads = cur.fetchone()[0] or 0
 
-    cur.execute("SELECT subject, COUNT(*) FROM quiz GROUP BY subject")
-    subject_counts = cur.fetchall()
-
+    # Subject Leaderboard (USER SPECIFIC)
     cur.execute("""
         SELECT subject, COUNT(*)
         FROM practice_log
@@ -403,19 +394,15 @@ elif mode == "Live Dashboard":
     """, (st.session_state.user_id,))
     subject_leaderboard = cur.fetchall()
 
-    conn.close()
+    conn.close()   # CLOSE ONLY AFTER ALL QUERIES
 
     col1, col2 = st.columns(2)
     col1.metric("Total Questions", total_questions)
-    col2.metric("Total Reads", total_reads)
+    col2.metric("Your Total Reads", user_total_reads)
 
-    st.subheader("Subject Distribution")
-    for s in subject_counts:
-        st.write(f"{s[0]} : {s[1]}")
-
-    st.subheader("Most Practiced Subjects")
-    for s in subject_leaderboard:
-        st.write(f"{s[0]} : {s[1]} reads")
+    st.subheader("Your Subject Leaderboard")
+    for subject, count in subject_leaderboard:
+        st.write(f"{subject} : {count} reads")
 
     # ========================================================
     # USER LEADERBOARD (ADMIN ONLY)
@@ -576,6 +563,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
