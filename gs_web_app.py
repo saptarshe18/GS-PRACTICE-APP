@@ -29,10 +29,6 @@ def create_tables():
     conn = get_connection()
     cur = conn.cursor()
 
-    # 🔥 DROP OLD TABLE (ONE TIME FIX)
-    cur.execute("DROP TABLE IF EXISTS practice_log")
-
-
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1002,6 +998,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
