@@ -387,13 +387,13 @@ elif mode == "Live Dashboard":
     subject_counts = cur.fetchall()
 
     cur.execute("""
-    SELECT subject, COUNT(*)
-    FROM practice_log
-    WHERE user_id = ?
-    GROUP BY subject
-    ORDER BY COUNT(*) DESC
-""", (st.session_state.user_id,))
-subject_leaderboard = cur.fetchall()
+        SELECT subject, COUNT(*)
+        FROM practice_log
+        WHERE user_id = ?
+        GROUP BY subject
+        ORDER BY COUNT(*) DESC
+    """, (st.session_state.user_id,))
+    subject_leaderboard = cur.fetchall()
 
     conn.close()
 
@@ -568,6 +568,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
