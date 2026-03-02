@@ -397,8 +397,8 @@ if mode in ["Subject Practice", "Mixed Practice"]:
             st.session_state.session_difficult += 1
 
         if st.button("Next"):
-        st.session_state.index += 1
-        st.rerun()
+            st.session_state.index += 1
+            st.rerun()
 
     if st.button("⏹ End Practice"):
         st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
@@ -872,6 +872,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
