@@ -375,6 +375,14 @@ elif mode == "Live Dashboard":
     cur.execute("SELECT COUNT(*) FROM quiz")
     total_questions = cur.fetchone()[0]
 
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    st.write(cur.fetchall())
+
+    st.write(DB_FILE)
+
+    st.write("User ID:", st.session_state.user_id)
+    
+
     # Total Reads (USER SPECIFIC)
     cur.execute("""
         SELECT COUNT(*)
@@ -568,6 +576,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
