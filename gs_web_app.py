@@ -66,6 +66,25 @@ def create_tables():
     conn.commit()
     conn.close()
 
+def upgrade_users_table():
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        # Get existing columns
+        cur.execute("PRAGMA table_info(users)")
+        existing_columns = [row[1] for row in cur.fetchall()]
+
+        # Add is_active if missing
+        if "is_active" not in existing_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 0")
+
+        # Add last_active if missing
+        if "last_active" not in existing_columns:
+            cur.execute("ALTER TABLE users ADD COLUMN last_active TEXT")
+
+        conn.commit()
+
 def create_default_admin():
     conn = get_connection()
     cur = conn.cursor()
@@ -92,6 +111,7 @@ def create_default_admin():
     conn.close()
 
 create_tables()
+upgrade_users_table()
 create_default_admin()
 
 # ============================================================
@@ -699,24 +719,134 @@ elif mode == "User Management":
         st.error("Admin access required")
         st.stop()
 
-    conn = get_connection()
-    cur = conn.cursor()
+    st.subheader("👥 User Management Panel")
 
-    st.subheader("Create User")
+    # ========================================================
+    # 1️⃣ LIST USERS
+    # ========================================================
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    role = st.selectbox("Role", ["student", "admin"])
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, username, role, is_active, last_active
+            FROM users
+            ORDER BY username
+        """)
+        users = cur.fetchall()
+
+    st.markdown("### 📋 All Users")
+
+    for user_id, username, role, is_active, last_active in users:
+
+        col1, col2, col3, col4, col5 = st.columns([2,1,1,2,2])
+
+        with col1:
+            st.write(username)
+
+        with col2:
+            st.write(role)
+
+        with col3:
+            if is_active:
+                st.success("Active")
+            else:
+                st.error("Inactive")
+
+        with col4:
+            st.write(last_active if last_active else "Never")
+
+        with col5:
+            if st.button("Delete", key=f"delete_{user_id}"):
+
+                with get_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                    cur.execute("DELETE FROM practice_log WHERE user_id = ?", (user_id,))
+                    conn.commit()
+
+                st.success("User deleted")
+                st.rerun()
+
+    st.markdown("---")
+
+    # ========================================================
+    # 2️⃣ CREATE USER
+    # ========================================================
+
+    st.markdown("### ➕ Create New User")
+
+    new_username = st.text_input("Username")
+    new_password = st.text_input("Password", type="password")
+    new_role = st.selectbox("Role", ["student", "admin"])
 
     if st.button("Create User"):
-        cur.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            (username, hash_password(password), role)
-        )
-        conn.commit()
-        st.success("User created")
 
-    conn.close()
+        try:
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, role)
+                    VALUES (?, ?, ?)
+                """, (
+                    new_username,
+                    hash_password(new_password),
+                    new_role
+                ))
+
+                conn.commit()
+
+            st.success("User created successfully")
+            st.rerun()
+
+        except:
+            st.error("Username already exists")
+
+    st.markdown("---")
+
+    # ========================================================
+    # 3️⃣ MODIFY USER
+    # ========================================================
+
+    st.markdown("### ✏ Modify User")
+
+    usernames = [u[1] for u in users]
+
+    selected_user = st.selectbox("Select User", usernames)
+
+    new_password = st.text_input("New Password (leave blank to keep same)", type="password")
+    new_role = st.selectbox("New Role", ["student", "admin"])
+
+    if st.button("Update User"):
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            if new_password:
+                cur.execute("""
+                    UPDATE users
+                    SET password_hash = ?, role = ?
+                    WHERE username = ?
+                """, (
+                    hash_password(new_password),
+                    new_role,
+                    selected_user
+                ))
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET role = ?
+                    WHERE username = ?
+                """, (
+                    new_role,
+                    selected_user
+                ))
+
+            conn.commit()
+
+        st.success("User updated successfully")
+        st.rerun()
 
 # ========================================================
 # INSERT QUESTION
@@ -872,6 +1002,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
