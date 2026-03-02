@@ -954,38 +954,38 @@ elif mode == "Insert Question":
     # SAVE BUTTON
     # ===============================
     with col1:
-    if st.button("💾 Save Question"):
+        if st.button("💾 Save Question"):
 
-        if not question.strip() or not answer.strip():
-            st.error("Question and Answer cannot be empty.")
-        else:
-            with get_connection() as conn:
-                cur = conn.cursor()
+            if not question.strip() or not answer.strip():
+                st.error("Question and Answer cannot be empty.")
+            else:
+                with get_connection() as conn:
+                    cur = conn.cursor()
 
-                cur.execute("""
-                    INSERT INTO quiz (subject, question, answer, difficulty)
-                    VALUES (?, ?, ?, ?)
-                """, (
-                    subject,
-                    question.strip(),
-                    answer.strip(),
-                    difficulty
-                ))
+                    cur.execute("""
+                        INSERT INTO quiz (subject, question, answer, difficulty)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        subject,
+                        question.strip(),
+                        answer.strip(),
+                        difficulty
+                    ))
 
-                # 🔥 Get inserted ID
-                inserted_id = cur.lastrowid
+                    # 🔥 Get inserted ID
+                    inserted_id = cur.lastrowid
 
-                conn.commit()
+                    conn.commit()
 
-            st.success(f"Question added successfully! 🆔 ID: {inserted_id}")
+                st.success(f"Question added successfully! 🆔 ID: {inserted_id}")
 
-            # Optional: show clearly
-            st.info(f"New Question ID: {inserted_id}")
+                # Optional: show clearly
+                st.info(f"New Question ID: {inserted_id}")
 
-            # Reset fields safely
-            st.session_state.pop("insert_question", None)
-            st.session_state.pop("insert_answer", None)
-            st.rerun()
+                # Reset fields safely
+                st.session_state.pop("insert_question", None)
+                st.session_state.pop("insert_answer", None)
+                st.rerun()
 
     # ===============================
     # RESET BUTTON
@@ -1191,6 +1191,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data", None)
                 st.rerun()
+
 
 
 
