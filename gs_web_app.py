@@ -416,7 +416,7 @@ if mode in ["Subject Practice", "Mixed Practice"]:
     st.write(question)
 
     if "answer_shown" not in st.session_state:
-    st.session_state.answer_shown = False
+        st.session_state.answer_shown = False
 
     if st.button("Show Answer"):
         st.success(answer)
@@ -1019,6 +1019,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
