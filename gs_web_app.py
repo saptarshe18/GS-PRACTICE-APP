@@ -570,7 +570,7 @@ elif mode == "Analytics":
 # LEADERBOARD / USER DASHBOARD
 # ========================================================
 
-elif mode == "Leaderboard":
+elif mode == "Live Dashboard":
 
     st.subheader("📊 User Dashboard")
 
@@ -1002,6 +1002,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
