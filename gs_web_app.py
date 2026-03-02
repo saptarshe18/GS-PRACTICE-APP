@@ -228,6 +228,7 @@ mode = st.sidebar.selectbox(
         "Subject Practice",
         "Mixed Practice",
         "Exam Mode",
+        "Update Question",
         "Insert Question",
         "Import from TXT",
         "Marked Questions",
@@ -899,6 +900,7 @@ elif mode == "User Management":
         st.success("User updated successfully")
         st.rerun()
 
+
 # ========================================================
 # INSERT QUESTION
 # ========================================================
@@ -907,27 +909,32 @@ elif mode == "Insert Question":
 
     st.subheader("➕ Insert New Question")
 
-    # Initialize session state safely
+    # Initialize safely
     if "insert_question" not in st.session_state:
         st.session_state.insert_question = ""
 
     if "insert_answer" not in st.session_state:
         st.session_state.insert_answer = ""
 
-    # Input fields
+    # Question field
     question = st.text_area(
         "Enter Question",
         key="insert_question"
     )
 
+    # Answer field
     answer = st.text_area(
         "Enter Answer",
         key="insert_answer"
     )
 
-    subject = st.text_input("Subject")
+    # 🔥 Subject as dropdown (from your predefined SUBJECTS list)
+    subject = st.selectbox(
+        "Select Subject",
+        SUBJECTS
+    )
 
-    # 🔹 Difficulty shown as text
+    # Difficulty dropdown (label → mapped value)
     difficulty_label = st.selectbox(
         "Difficulty",
         ["Easy", "Moderate", "Difficult"]
@@ -943,47 +950,52 @@ elif mode == "Insert Question":
 
     col1, col2 = st.columns(2)
 
-    # ====================================================
+    # ===============================
     # SAVE BUTTON
-    # ====================================================
+    # ===============================
     with col1:
-        if st.button("💾 Save Question"):
+    if st.button("💾 Save Question"):
 
-            if not question.strip() or not answer.strip() or not subject.strip():
-                st.error("All fields required.")
-            else:
-                with get_connection() as conn:
-                    cur = conn.cursor()
+        if not question.strip() or not answer.strip():
+            st.error("Question and Answer cannot be empty.")
+        else:
+            with get_connection() as conn:
+                cur = conn.cursor()
 
-                    cur.execute("""
-                        INSERT INTO quiz (subject, question, answer, difficulty)
-                        VALUES (?, ?, ?, ?)
-                    """, (
-                        subject.strip(),
-                        question.strip(),
-                        answer.strip(),
-                        difficulty
-                    ))
+                cur.execute("""
+                    INSERT INTO quiz (subject, question, answer, difficulty)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    subject,
+                    question.strip(),
+                    answer.strip(),
+                    difficulty
+                ))
 
-                    conn.commit()
+                # 🔥 Get inserted ID
+                inserted_id = cur.lastrowid
 
-                st.success("Question added successfully.")
+                conn.commit()
 
-                # Reset fields after save
-                st.session_state.insert_question = ""
-                st.session_state.insert_answer = ""
-                st.rerun()
+            st.success(f"Question added successfully! 🆔 ID: {inserted_id}")
 
-    # ====================================================
+            # Optional: show clearly
+            st.info(f"New Question ID: {inserted_id}")
+
+            # Reset fields safely
+            st.session_state.pop("insert_question", None)
+            st.session_state.pop("insert_answer", None)
+            st.rerun()
+
+    # ===============================
     # RESET BUTTON
-    # ====================================================
+    # ===============================
     with col2:
         if st.button("🔄 Reset Fields"):
 
-            st.session_state.insert_question = ""
-            st.session_state.insert_answer = ""
+            st.session_state.pop("insert_question", None)
+            st.session_state.pop("insert_answer", None)
             st.rerun()
-
 # ========================================================
 # IMPORT FROM TXT
 # ========================================================
@@ -1053,6 +1065,132 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
+# ========================================================
+# UPDATE / DELETE QUESTION BY ID
+# ========================================================
+
+elif mode == "Update Question":
+
+    st.subheader("✏ Update / Delete Question")
+
+    qid = st.number_input(
+        "Enter Question ID",
+        min_value=1,
+        step=1
+    )
+
+    # Load Question
+    if st.button("Load Question"):
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT subject, question, answer, difficulty
+                FROM quiz
+                WHERE si_no = ?
+            """, (qid,))
+            row = cur.fetchone()
+
+        if row:
+            st.session_state.edit_data = {
+                "id": qid,
+                "subject": row[0],
+                "question": row[1],
+                "answer": row[2],
+                "difficulty": row[3]
+            }
+        else:
+            st.error("Question not found.")
+
+    # If Question Loaded
+    if "edit_data" in st.session_state:
+
+        data = st.session_state.edit_data
+
+        new_question = st.text_area(
+            "Question",
+            value=data["question"]
+        )
+
+        new_answer = st.text_area(
+            "Answer",
+            value=data["answer"]
+        )
+
+        new_subject = st.selectbox(
+            "Subject",
+            SUBJECTS,
+            index=SUBJECTS.index(data["subject"])
+        )
+
+        difficulty_map = {
+            "Easy": 1,
+            "Moderate": 2,
+            "Difficult": 3
+        }
+
+        reverse_map = {
+            1: "Easy",
+            2: "Moderate",
+            3: "Difficult"
+        }
+
+        difficulty_label = st.selectbox(
+            "Difficulty",
+            ["Easy", "Moderate", "Difficult"],
+            index=["Easy", "Moderate", "Difficult"].index(
+                reverse_map[data["difficulty"]]
+            )
+        )
+
+        col1, col2 = st.columns(2)
+
+        # ==========================
+        # UPDATE OR DELETE LOGIC
+        # ==========================
+        with col1:
+            if st.button("Save Changes"):
+
+                # 🔥 DELETE IF BOTH EMPTY
+                if not new_question.strip() and not new_answer.strip():
+
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+                        cur.execute(
+                            "DELETE FROM quiz WHERE si_no = ?",
+                            (data["id"],)
+                        )
+                        conn.commit()
+
+                    st.success("Question deleted successfully.")
+                    st.session_state.pop("edit_data", None)
+                    st.rerun()
+
+                else:
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+                        cur.execute("""
+                            UPDATE quiz
+                            SET subject = ?, question = ?, answer = ?, difficulty = ?
+                            WHERE si_no = ?
+                        """, (
+                            new_subject,
+                            new_question.strip(),
+                            new_answer.strip(),
+                            difficulty_map[difficulty_label],
+                            data["id"]
+                        ))
+                        conn.commit()
+
+                    st.success("Question updated successfully.")
+                    st.session_state.pop("edit_data", None)
+                    st.rerun()
+
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.pop("edit_data", None)
+                st.rerun()
 
 
 
