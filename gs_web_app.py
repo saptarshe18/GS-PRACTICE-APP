@@ -58,7 +58,33 @@ def create_tables():
     conn.commit()
     conn.close()
 
+def create_default_admin():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Check if any admin exists
+    cur.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    admin_count = cur.fetchone()[0]
+
+    if admin_count == 0:
+        default_username = "Admin"
+        default_password = "Admin123"
+
+        cur.execute("""
+            INSERT INTO users (username, password_hash, role)
+            VALUES (?, ?, ?)
+        """, (
+            default_username,
+            hash_password(default_password),
+            "admin"
+        ))
+
+        conn.commit()
+
+    conn.close()
+
 create_tables()
+create_default_admin()
 
 # ============================================================
 # SECURITY
@@ -424,3 +450,4 @@ elif mode == "User Management":
         st.success("User created")
 
     conn.close()
+
