@@ -214,15 +214,31 @@ def toggle_mark(si_no, current_status):
 
 if mode in ["Subject Practice", "Mixed Practice"]:
 
-    if "questions" not in st.session_state:
-        st.session_state.questions = get_questions()
-        st.session_state.index = 0
+    # Initialize session flags
+    if "practice_active" not in st.session_state:
+        st.session_state.practice_active = False
+
+    if "reviewed" not in st.session_state:
         st.session_state.reviewed = 0
+
+    # ---------------- START BUTTON ----------------
+
+    if not st.session_state.practice_active:
+        if st.button("▶ Start Practice"):
+            st.session_state.questions = get_questions()
+            st.session_state.index = 0
+            st.session_state.reviewed = 0
+            st.session_state.practice_active = True
+            st.rerun()
+        st.stop()
+
+    # ---------------- ACTIVE SESSION ----------------
 
     questions = st.session_state.questions
 
     if st.session_state.index >= len(questions):
         st.success("Session Complete")
+        st.session_state.practice_active = False
         st.stop()
 
     q = questions[st.session_state.index]
@@ -245,13 +261,27 @@ if mode in ["Subject Practice", "Mixed Practice"]:
                 toggle_mark(si_no, marked)
                 st.rerun()
 
-    if st.button("Show Answer"):
+    # Prevent multiple read increments
+    if "answer_shown" not in st.session_state:
+        st.session_state.answer_shown = False
+
+    if st.button("Show Answer") and not st.session_state.answer_shown:
         st.success(answer)
         update_read_count(si_no, subject)
         st.session_state.reviewed += 1
+        st.session_state.answer_shown = True
 
     if st.button("Next"):
         st.session_state.index += 1
+        st.session_state.answer_shown = False
+        st.rerun()
+
+    # ---------------- END BUTTON ----------------
+
+    if st.button("⏹ End Practice"):
+        st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
+        st.session_state.practice_active = False
+        st.session_state.reviewed = 0
         st.rerun()
 
 # ============================================================
@@ -573,6 +603,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
