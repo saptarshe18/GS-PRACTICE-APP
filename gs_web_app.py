@@ -579,6 +579,13 @@ elif mode == "Live Dashboard":
 
     with get_connection() as conn:
         cur = conn.cursor()
+        cur.execute("PRAGMA table_info(practice_log)")
+        columns = cur.fetchall()
+
+    st.write(columns)
+
+    with get_connection() as conn:
+        cur = conn.cursor()
 
         cur.execute("SELECT COUNT(*) FROM quiz")
         total_questions = cur.fetchone()[0] or 0
@@ -998,6 +1005,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
