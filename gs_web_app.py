@@ -7,6 +7,21 @@ import os
 import time
 from datetime import datetime
 
+# 🔥 MUST BE HERE
+SUBJECTS = [
+    "Ancient and Medieval History",
+    "Modern History",
+    "Geography",
+    "Polity",
+    "Economics",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "Environment",
+    "Static Part",
+    "West Bengal"
+]
+
 # ============================================================
 # DATABASE CONFIG (Cloud Safe)
 # ============================================================
@@ -1191,6 +1206,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data", None)
                 st.rerun()
+
 
 
 
