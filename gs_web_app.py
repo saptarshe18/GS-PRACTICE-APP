@@ -258,7 +258,7 @@ def toggle_mark(si_no, current_status):
 if mode in ["Subject Practice", "Mixed Practice"]:
 
     if "session_easy" not in st.session_state:
-    st.session_state.session_easy = 0
+        st.session_state.session_easy = 0
 
     if "session_moderate" not in st.session_state:
         st.session_state.session_moderate = 0
@@ -872,6 +872,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
