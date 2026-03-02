@@ -415,10 +415,14 @@ if mode in ["Subject Practice", "Mixed Practice"]:
     st.write(f"**Reads:** {reads}")
     st.write(question)
 
+    if "answer_shown" not in st.session_state:
+    st.session_state.answer_shown = False
+
     if st.button("Show Answer"):
         st.success(answer)
         update_read_count(si_no, subject)
         st.session_state.reviewed += 1
+        st.session_state.answer_shown = True
 
         # Difficulty tracking
         if diff == 1:
@@ -428,9 +432,10 @@ if mode in ["Subject Practice", "Mixed Practice"]:
         elif diff == 3:
             st.session_state.session_difficult += 1
 
-        if st.button("Next"):
-            st.session_state.index += 1
-            st.rerun()
+    if st.button("Next"):
+        st.session_state.index += 1
+        st.session_state.answer_shown = False
+        st.rerun()
 
     if st.button("⏹ End Practice"):
         st.success(f"Session Ended. Total Reviewed: {st.session_state.reviewed}")
@@ -1014,6 +1019,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
