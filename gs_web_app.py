@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 import pandas as pd
 
-DB_FILE = r"C:\Users\User2\Desktop\Test\GS PRACTICE APP\wbcsgs.db"
+DB_FILE = "wbcsgs.db"
 
 SUBJECTS = [
     "Ancient and Medieval History", "Modern History", "Geography", "Polity",
