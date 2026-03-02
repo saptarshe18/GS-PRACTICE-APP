@@ -123,6 +123,7 @@ def create_default_admin():
 
 create_tables()
 upgrade_users_table()
+upgrade_practice_table()
 create_default_admin()
 
 # ============================================================
@@ -1020,6 +1021,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
