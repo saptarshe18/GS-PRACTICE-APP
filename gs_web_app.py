@@ -546,20 +546,45 @@ elif mode == "Analytics":
     else:
         st.info("No data yet")
 
-# ============================================================
-# LIVE DASHBOARD
-# ============================================================
+# ========================================================
+# LEADERBOARD / USER DASHBOARD
+# ========================================================
 
-elif mode == "Live Dashboard":
+elif mode == "Leaderboard":
 
-    conn = get_connection()
-    cur = conn.cursor()
+    st.subheader("📊 User Dashboard")
 
-    # Total Questions
-    cur.execute("SELECT COUNT(*) FROM quiz")
-    total_questions = cur.fetchone()[0]
+    user_id = st.session_state.user_id
+    role = st.session_state.role
 
-    # USER SPECIFIC TOTAL READS (Isolated Safe Version)
+    # ====================================================
+    # 1️⃣ TOTAL QUESTIONS (GLOBAL)
+    # ====================================================
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM quiz")
+        total_questions = cur.fetchone()[0] or 0
+
+        cur.execute("""
+            SELECT subject, COUNT(*)
+            FROM quiz
+            GROUP BY subject
+        """)
+        subject_question_counts = cur.fetchall()
+
+    st.markdown("## 📘 Question Bank Overview")
+    st.metric("Total Questions", total_questions)
+
+    for subject, count in subject_question_counts:
+        st.write(f"{subject} : {count}")
+
+    st.markdown("---")
+
+    # ====================================================
+    # 2️⃣ USER TOTAL READ COUNT
+    # ====================================================
 
     with get_connection() as conn:
         cur = conn.cursor()
@@ -568,55 +593,101 @@ elif mode == "Live Dashboard":
             SELECT COUNT(*)
             FROM practice_log
             WHERE user_id = ?
-        """, (int(st.session_state.user_id),))
+        """, (user_id,))
+        user_total_reads = cur.fetchone()[0] or 0
 
-        result = cur.fetchone()
-        user_total_reads = result[0] if result else 0
+    st.markdown("## 📈 Your Practice Stats")
 
-    # Subject Leaderboard (USER SPECIFIC)
-    cur.execute("""
-        SELECT subject, COUNT(*)
-        FROM practice_log
-        WHERE user_id = ?
-        GROUP BY subject
-        ORDER BY COUNT(*) DESC
-    """, (st.session_state.user_id,))
-    subject_leaderboard = cur.fetchall()
+    col1, col2 = st.columns([3,1])
 
-    conn.close()   # CLOSE ONLY AFTER ALL QUERIES
+    with col1:
+        st.metric("Total Questions Practiced", user_total_reads)
 
-    col1, col2 = st.columns(2)
-    col1.metric("Total Questions", total_questions)
-    col2.metric("Your Total Reads", user_total_reads)
+    with col2:
+        if st.button("Reset Total Reads"):
+            with get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    DELETE FROM practice_log
+                    WHERE user_id = ?
+                """, (user_id,))
+                conn.commit()
 
-    st.subheader("Your Subject Leaderboard")
-    for subject, count in subject_leaderboard:
-        st.write(f"{subject} : {count} reads")
+            st.success("Your total practice data has been reset.")
+            st.rerun()
 
-    # ========================================================
-    # USER LEADERBOARD (ADMIN ONLY)
-    # ========================================================
+    # ====================================================
+    # 3️⃣ SUBJECT-WISE USER READ COUNT
+    # ====================================================
 
-    if st.session_state.role == "admin":
-
-        st.subheader("👥 User Leaderboard")
-
-        conn = get_connection()
+    with get_connection() as conn:
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT u.username, COUNT(p.id)
-            FROM users u
-            LEFT JOIN practice_log p ON u.id = p.user_id
-            GROUP BY u.username
-            ORDER BY COUNT(p.id) DESC
-        """)
+            SELECT subject, COUNT(*)
+            FROM practice_log
+            WHERE user_id = ?
+            GROUP BY subject
+            ORDER BY COUNT(*) DESC
+        """, (user_id,))
 
-        user_rows = cur.fetchall()
-        conn.close()
+        subject_reads = cur.fetchall()
 
-        for i, (username, count) in enumerate(user_rows, 1):
-            st.write(f"{i}. {username} — {count} practices")
+    if subject_reads:
+
+        st.markdown("### 📊 Subject-wise Practice")
+
+        for subject, count in subject_reads:
+
+            col1, col2 = st.columns([3,1])
+
+            with col1:
+                st.write(f"{subject} : {count}")
+
+            with col2:
+                if st.button(f"Reset {subject}", key=f"reset_{subject}"):
+
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+                        cur.execute("""
+                            DELETE FROM practice_log
+                            WHERE user_id = ?
+                            AND subject = ?
+                        """, (user_id, subject))
+                        conn.commit()
+
+                    st.success(f"{subject} data reset.")
+                    st.rerun()
+
+    else:
+        st.info("No practice data yet.")
+
+    st.markdown("---")
+
+    # ====================================================
+    # 4️⃣ ADMIN VIEW - OTHER USERS TOTAL READ COUNT
+    # ====================================================
+
+    if role == "admin":
+
+        st.markdown("## 👑 Admin: User Activity Overview")
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT u.username, COUNT(p.id)
+                FROM users u
+                LEFT JOIN practice_log p
+                ON u.id = p.user_id
+                GROUP BY u.username
+                ORDER BY COUNT(p.id) DESC
+            """)
+
+            all_user_stats = cur.fetchall()
+
+        for username, count in all_user_stats:
+            st.write(f"{username} : {count} total reads")
 
 # ============================================================
 # USER MANAGEMENT (ADMIN ONLY)
@@ -801,6 +872,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
