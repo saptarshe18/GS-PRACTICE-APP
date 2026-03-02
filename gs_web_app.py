@@ -376,13 +376,19 @@ elif mode == "Live Dashboard":
     cur.execute("SELECT COUNT(*) FROM quiz")
     total_questions = cur.fetchone()[0]
 
-    # USER SPECIFIC TOTAL READS
-    cur.execute("""
-        SELECT COUNT(*)
-        FROM practice_log
-        WHERE user_id = ?
-    """, (st.session_state.user_id,))
-    user_total_reads = cur.fetchone()[0] or 0
+    # USER SPECIFIC TOTAL READS (Isolated Safe Version)
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM practice_log
+            WHERE user_id = ?
+        """, (int(st.session_state.user_id),))
+
+        result = cur.fetchone()
+        user_total_reads = result[0] if result else 0
 
     # Subject Leaderboard (USER SPECIFIC)
     cur.execute("""
@@ -563,6 +569,7 @@ elif mode == "Import from TXT":
 
             st.success(f"{inserted} questions imported successfully.")
             st.rerun()
+
 
 
 
