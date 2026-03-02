@@ -21,6 +21,10 @@ def get_connection():
 # TABLE CREATION
 # ============================================================
 
+def hash_password(password):
+    import hashlib
+    return hashlib.sha256(password.encode()).hexdigest()
+
 def create_tables():
     conn = get_connection()
     cur = conn.cursor()
@@ -450,4 +454,5 @@ elif mode == "User Management":
         st.success("User created")
 
     conn.close()
+
 
