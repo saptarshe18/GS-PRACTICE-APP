@@ -516,17 +516,17 @@ elif mode == "Live Dashboard":
         FROM quiz
         GROUP BY subject
         ORDER BY CASE subject
-            WHEN 'ANCIENT AND MEDIEVAL HISTORY' THEN 1
-            WHEN 'MODERN HISTORY' THEN 2
-            WHEN 'GEOGRAPHY' THEN 3
-            WHEN 'POLITY' THEN 4
-            WHEN 'ECONOMICS' THEN 5
-            WHEN 'ENVIRONMENT' THEN 6
-            WHEN 'PHYSICS' THEN 7
-            WHEN 'CHEMISTRY' THEN 8
-            WHEN 'BIOLOGY' THEN 9
-            WHEN 'STATIC PART' THEN 10
-            WHEN 'WEST BENGAL' THEN 11
+            WHEN 'Ancient and Medieval History' THEN 1
+            WHEN 'Modern History' THEN 2
+            WHEN 'Geography' THEN 3
+            WHEN 'Polity' THEN 4
+            WHEN 'Economics' THEN 5
+            WHEN 'Environment' THEN 6
+            WHEN 'Physics' THEN 7
+            WHEN 'Chemistry' THEN 8
+            WHEN 'Biology' THEN 9
+            WHEN 'Static Part' THEN 10
+            WHEN 'West Bengal' THEN 11
             ELSE 12
         END
     """)
@@ -1192,6 +1192,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
 
 
 
