@@ -240,7 +240,7 @@ def update_read_count(si_no, subject):
     with get_connection() as conn:
         cur = conn.cursor()
 
-        # Update question read count
+        # Update question read counter
         cur.execute(
             """
             UPDATE quiz
@@ -250,17 +250,22 @@ def update_read_count(si_no, subject):
             (si_no,)
         )
 
-        # Insert practice log safely
+        # Log every practice event
         cur.execute(
             """
-            INSERT INTO practice_log(user_id,date,subject)
-            VALUES(%s,%s,%s)
-            ON CONFLICT DO NOTHING
+            INSERT INTO practice_log(user_id,date,subject,question_id)
+            VALUES(%s,%s,%s,%s)
             """,
-            (st.session_state.user_id, today, subject)
+            (
+                st.session_state.user_id,
+                today,
+                subject,
+                si_no
+            )
         )
 
         conn.commit()
+        
 def toggle_mark(si_no, current_status):
     conn = get_connection()
     cur = conn.cursor()
@@ -608,6 +613,39 @@ elif mode == "Live Dashboard":
         st.info("No practice data yet.")
 
     st.markdown("---")
+
+    if role == "admin":
+
+    st.markdown("## 👑 Admin: All Users Practice Stats")
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT u.username, COUNT(p.question_id)
+            FROM users u
+            LEFT JOIN practice_log p
+            ON u.id = p.user_id
+            GROUP BY u.username
+            ORDER BY COUNT(p.question_id) DESC
+        """)
+
+        user_stats = cur.fetchall()
+
+    if user_stats:
+
+        for username, total in user_stats:
+
+            col1, col2 = st.columns([3,1])
+
+            with col1:
+                st.write(f"{username}")
+
+            with col2:
+                st.metric("Total Practiced", total)
+
+    else:
+        st.info("No user practice data yet.")
 
 # ============================================================
 # MARKED QUESTIONS
@@ -1139,6 +1177,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
 
 
 
