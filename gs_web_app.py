@@ -28,15 +28,15 @@ SUBJECTS = [
 # =====================================================
 
 def get_connection():
-
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         host=st.secrets["DB_HOST"],
         dbname=st.secrets["DB_NAME"],
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASSWORD"],
-        port=st.secrets["DB_PORT"],
+        port=int(st.secrets["DB_PORT"]),
         sslmode="require"
     )
+    return conn
 
 # =====================================================
 # SECURITY
@@ -97,6 +97,13 @@ if st.session_state.user_id is None:
     password=st.text_input("Password",type="password")
 
     if st.button("Login"):
+
+        try:
+            conn = get_connection()
+            st.success("Database connected successfully")
+            conn.close()
+        except Exception as e:
+            st.error(f"DB ERROR: {e}")
 
         user_id,role=login_user(username,password)
 
@@ -391,4 +398,5 @@ elif mode=="User Management":
     for uid,uname,role,active,last in users:
 
         st.write(f"{uname} | {role} | Active:{active} | Last:{last}")
+
 
