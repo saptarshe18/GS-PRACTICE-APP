@@ -512,10 +512,25 @@ elif mode == "Live Dashboard":
         total_questions = cur.fetchone()[0] or 0
 
         cur.execute("""
-            SELECT subject, COUNT(*)
-            FROM quiz
-            GROUP BY subject
-        """)
+        SELECT subject, COUNT(*)
+        FROM quiz
+        GROUP BY subject
+        ORDER BY CASE subject
+            WHEN 'ANCIENT AND MEDIEVAL HISTORY' THEN 1
+            WHEN 'MODERN HISTORY' THEN 2
+            WHEN 'GEOGRAPHY' THEN 3
+            WHEN 'POLITY' THEN 4
+            WHEN 'ECONOMICS' THEN 5
+            WHEN 'ENVIRONMENT' THEN 6
+            WHEN 'PHYSICS' THEN 7
+            WHEN 'CHEMISTRY' THEN 8
+            WHEN 'BIOLOGY' THEN 9
+            WHEN 'STATIC PART' THEN 10
+            WHEN 'WEST BENGAL' THEN 11
+            ELSE 12
+        END
+    """)
+
         subject_question_counts = cur.fetchall()
 
     st.markdown("## 📘 Question Bank Overview")
@@ -1177,6 +1192,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
 
 
 
