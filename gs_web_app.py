@@ -51,8 +51,13 @@ def hash_password(password):
 
 def login_user(username, password):
 
+    st.write("🔎 Login attempt started")
+
     with get_connection() as conn:
         cur = conn.cursor()
+
+        st.write("Username entered:", username)
+        st.write("Password entered:", password)
 
         cur.execute("""
         SELECT id,password_hash,role
@@ -62,7 +67,28 @@ def login_user(username, password):
 
         row = cur.fetchone()
 
+        st.write("Database row fetched:", row)
+
+        if row:
+
+            stored_password = row[1]
+            hashed_input = hash_password(password)
+
+            st.write("Stored password in DB:", stored_password)
+            st.write("Hashed input password:", hashed_input)
+
+            if stored_password == password:
+                st.success("Matched plain password")
+
+            if stored_password == hashed_input:
+                st.success("Matched hashed password")
+
+        else:
+            st.error("No user found in database")
+
         if row and (row[1] == password or row[1] == hash_password(password)):
+
+            st.success("Password verification passed")
 
             cur.execute("""
             UPDATE users
@@ -73,7 +99,11 @@ def login_user(username, password):
 
             conn.commit()
 
+            st.write("User login updated in DB")
+
             return row[0],row[2]
+
+        st.error("Password verification failed")
 
     return None,None
 
@@ -398,6 +428,7 @@ elif mode=="User Management":
     for uid,uname,role,active,last in users:
 
         st.write(f"{uname} | {role} | Active:{active} | Last:{last}")
+
 
 
 
