@@ -616,36 +616,36 @@ elif mode == "Live Dashboard":
 
     if role == "admin":
 
-    st.markdown("## 👑 Admin: All Users Practice Stats")
+        st.markdown("## 👑 Admin: All Users Practice Stats")
 
-    with get_connection() as conn:
-        cur = conn.cursor()
+        with get_connection() as conn:
+            cur = conn.cursor()
 
-        cur.execute("""
-            SELECT u.username, COUNT(p.question_id)
-            FROM users u
-            LEFT JOIN practice_log p
-            ON u.id = p.user_id
-            GROUP BY u.username
-            ORDER BY COUNT(p.question_id) DESC
-        """)
+            cur.execute("""
+                SELECT u.username, COUNT(p.question_id)
+                FROM users u
+                LEFT JOIN practice_log p
+                ON u.id = p.user_id
+                GROUP BY u.username
+                ORDER BY COUNT(p.question_id) DESC
+            """)
 
-        user_stats = cur.fetchall()
+            user_stats = cur.fetchall()
 
-    if user_stats:
+        if user_stats:
 
-        for username, total in user_stats:
+            for username, total in user_stats:
 
-            col1, col2 = st.columns([3,1])
+                col1, col2 = st.columns([3,1])
 
-            with col1:
-                st.write(f"{username}")
+                with col1:
+                    st.write(f"{username}")
 
-            with col2:
-                st.metric("Total Practiced", total)
+                with col2:
+                    st.metric("Total Practiced", total)
 
-    else:
-        st.info("No user practice data yet.")
+        else:
+            st.info("No user practice data yet.")
 
 # ============================================================
 # MARKED QUESTIONS
@@ -1177,6 +1177,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
 
 
 
