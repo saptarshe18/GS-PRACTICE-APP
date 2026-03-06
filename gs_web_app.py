@@ -170,17 +170,20 @@ if st.sidebar.button("Logout"):
     st.session_state.clear()
     st.rerun()
 
-mode=st.sidebar.selectbox(
-"Mode",
-[
-"Live Dashboard",
-"Subject Practice",
-"Mixed Practice",
-"Insert Question",
-"Update Question",
-"Analytics",
-"User Management"
-]
+mode = st.sidebar.selectbox(
+    "Mode",
+    [
+        "Live Dashboard",
+        "Subject Practice",
+        "Mixed Practice",
+        "Exam Mode",
+        "Update Question",
+        "Insert Question",
+        "Import from TXT",
+        "Marked Questions",
+        "Analytics",
+        "User Management"
+    ]
 )
 
 # =====================================================
@@ -249,185 +252,885 @@ def update_read_count(si_no,subject):
 
         conn.commit()
 
-# =====================================================
-# PRACTICE MODE
-# =====================================================
+def toggle_mark(si_no, current_status):
+    conn = get_connection()
+    cur = conn.cursor()
+    new_status = 0 if current_status == 1 else 1
+    cur.execute("UPDATE quiz SET is_marked=? WHERE si_no=?", (new_status, si_no))
+    conn.commit()
+    conn.close()
 
-if mode in ["Subject Practice","Mixed Practice"]:
 
-    subject=None
-    difficulty=None
+# ============================================================
+# PRACTICE MODE (Subject + Mixed Unified Engine)
+# ============================================================
 
-    if mode=="Subject Practice":
-        subject=st.selectbox("Subject",SUBJECTS)
+if mode in ["Subject Practice", "Mixed Practice"]:
 
-    diff_label=st.selectbox("Difficulty",["All","Easy","Moderate","Difficult"])
+    # ---------------- SESSION STATE INIT ----------------
 
-    diff_map={"Easy":1,"Moderate":2,"Difficult":3}
-
-    if diff_label!="All":
-        difficulty=diff_map[diff_label]
-
-    order=st.selectbox("Question Type",["Random","Most Read","Least Read"])
-
-    order_map={
-    "Random":"random",
-    "Most Read":"most",
-    "Least Read":"least"
+    defaults = {
+        "session_easy": 0,
+        "session_moderate": 0,
+        "session_difficult": 0,
+        "show_summary": False,
+        "practice_active": False,
+        "reviewed": 0,
+        "answer_shown": False
     }
 
-    if "practice_active" not in st.session_state:
-        st.session_state.practice_active=False
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    subject = None
+    difficulty = None
+    order_type = "random"
+
+    # ========================================================
+    # SUBJECT FILTER (Only in Subject Practice)
+    # ========================================================
+
+    if mode == "Subject Practice":
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT subject, COUNT(*)
+                FROM quiz
+                GROUP BY subject
+                ORDER BY subject
+            """)
+
+            rows = cur.fetchall()
+
+        subject_counts = {r[0]: r[1] for r in rows}
+
+        if not subject_counts:
+            st.warning("No questions available in database.")
+            st.stop()
+
+        subject_options = [
+            f"{sub} ({count})"
+            for sub, count in subject_counts.items()
+        ]
+
+        selected_display = st.selectbox(
+            "Select Subject",
+            subject_options
+        )
+
+        subject = selected_display.rsplit(" (", 1)[0]
+
+    # ========================================================
+    # DIFFICULTY FILTER
+    # ========================================================
+
+    difficulty_option = st.selectbox(
+        "Difficulty",
+        ["All", "Easy", "Moderate", "Difficult"]
+    )
+
+    difficulty_map = {
+        "Easy": 1,
+        "Moderate": 2,
+        "Difficult": 3
+    }
+
+    if difficulty_option != "All":
+        difficulty = difficulty_map[difficulty_option]
+
+    # ========================================================
+    # QUESTION TYPE
+    # ========================================================
+
+    order_option = st.selectbox(
+        "Question Type",
+        ["Random", "Most Read", "Least Read"]
+    )
+
+    order_map = {
+        "Random": "random",
+        "Most Read": "most",
+        "Least Read": "least"
+    }
+
+    order_type = order_map[order_option]
+
+    # ========================================================
+    # START PRACTICE
+    # ========================================================
 
     if not st.session_state.practice_active:
 
-        if st.button("Start Practice"):
+        if st.button("▶ Start Practice"):
 
-            st.session_state.questions=get_questions(
-            subject,
-            difficulty,
-            order_map[order]
+            questions = get_questions(
+                subject=subject,
+                difficulty=difficulty,
+                order=order_type
             )
 
-            st.session_state.index=0
-            st.session_state.reviewed=0
-            st.session_state.practice_active=True
+            if not questions:
+                st.warning("No questions found with selected filters.")
+                st.stop()
+
+            st.session_state.questions = questions
+            st.session_state.index = 0
+            st.session_state.reviewed = 0
+            st.session_state.practice_active = True
+
             st.rerun()
 
         st.stop()
 
-    questions=st.session_state.questions
+    # ========================================================
+    # ACTIVE SESSION
+    # ========================================================
 
-    if st.session_state.index>=len(questions):
+    questions = st.session_state.questions
 
+    if st.session_state.index >= len(questions):
         st.success("Session Complete")
-        st.session_state.practice_active=False
-        st.stop()
+        st.session_state.practice_active = False
+        st.session_state.show_summary = True
+        st.rerun()
 
-    q=questions[st.session_state.index]
+    q = questions[st.session_state.index]
 
-    si_no,subject,question,answer,diff,reads,marked=q
+    si_no, subject, question, answer, diff, reads, marked = q
 
-    st.write(f"Question ID: {si_no}")
+    st.info(f"Reviewed This Session: {st.session_state.reviewed}")
+
+    st.write(f"**Question ID:** {si_no}")
+    st.write(f"**Subject:** {subject}")
+    st.write(f"**Reads:** {reads}")
+
     st.write(question)
+
+    # -------------------------------------------------------
 
     if st.button("Show Answer"):
 
         st.success(answer)
 
-        update_read_count(si_no,subject)
+        update_read_count(si_no, subject)
 
-        st.session_state.reviewed+=1
+        st.session_state.reviewed += 1
+        st.session_state.answer_shown = True
 
-    if st.button("Next"):
+        if diff == 1:
+            st.session_state.session_easy += 1
+        elif diff == 2:
+            st.session_state.session_moderate += 1
+        elif diff == 3:
+            st.session_state.session_difficult += 1
 
-        st.session_state.index+=1
+    # -------------------------------------------------------
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Next"):
+            st.session_state.index += 1
+            st.session_state.answer_shown = False
+            st.rerun()
+
+    with col2:
+        if st.button("⏹ End Practice"):
+            st.session_state.practice_active = False
+            st.session_state.show_summary = True
+            st.rerun()
+
+
+# ============================================================
+# PRACTICE SUMMARY
+# ============================================================
+
+if st.session_state.get("show_summary", False):
+
+    st.markdown("## 📊 Practice Session Summary")
+
+    st.metric(
+        "Total Questions Reviewed",
+        st.session_state.reviewed
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Easy", st.session_state.session_easy)
+    col2.metric("Moderate", st.session_state.session_moderate)
+    col3.metric("Difficult", st.session_state.session_difficult)
+
+    if st.button("Start New Session"):
+
+        for key in [
+            "practice_active",
+            "reviewed",
+            "session_easy",
+            "session_moderate",
+            "session_difficult",
+            "show_summary"
+        ]:
+            st.session_state[key] = 0 if "session" in key else False
+
         st.rerun()
-
 # =====================================================
-# DASHBOARD
+# LIVE DASHBOARD
 # =====================================================
 
-elif mode=="Live Dashboard":
+elif mode == "Live Dashboard":
 
-    st.header("User Dashboard")
+    st.subheader("📊 User Dashboard")
+
+    user_id = st.session_state.user_id
+    role = st.session_state.role
+
+    # ====================================================
+    # 1️⃣ TOTAL QUESTIONS (GLOBAL)
+    # ====================================================
 
     with get_connection() as conn:
-
-        cur=conn.cursor()
+        cur = conn.cursor()
 
         cur.execute("SELECT COUNT(*) FROM quiz")
-        total_q=cur.fetchone()[0]
+        total_questions = cur.fetchone()[0] or 0
 
         cur.execute("""
-        SELECT subject,COUNT(*)
-        FROM quiz
-        GROUP BY subject
+            SELECT subject, COUNT(*)
+            FROM quiz
+            GROUP BY subject
         """)
+        subject_question_counts = cur.fetchall()
 
-        subject_counts=cur.fetchall()
+    st.markdown("## 📘 Question Bank Overview")
+    st.metric("Total Questions", total_questions)
 
-    st.metric("Total Questions",total_q)
-
-    for s,c in subject_counts:
-        st.write(f"{s} : {c}")
+    for subject, count in subject_question_counts:
+        st.write(f"{subject} : {count}")
 
     st.markdown("---")
 
-    with get_connection() as conn:
-
-        cur=conn.cursor()
-
-        cur.execute("""
-        SELECT COUNT(*)
-        FROM practice_log
-        WHERE user_id=%s
-        """,(st.session_state.user_id,))
-
-        total_reads=cur.fetchone()[0]
-
-    st.metric("Total Questions Practiced",total_reads)
-
-# =====================================================
-# ANALYTICS
-# =====================================================
-
-elif mode=="Analytics":
+    # ====================================================
+    # 2️⃣ USER TOTAL READ COUNT
+    # ====================================================
 
     with get_connection() as conn:
-
-        cur=conn.cursor()
+        cur = conn.cursor()
 
         cur.execute("""
-        SELECT date,COUNT(*)
-        FROM practice_log
-        WHERE user_id=%s
-        GROUP BY date
-        ORDER BY date
-        """,(st.session_state.user_id,))
+            SELECT COUNT(*)
+            FROM practice_log
+            WHERE user_id = %s
+        """, (user_id,))
 
-        rows=cur.fetchall()
+        user_total_reads = cur.fetchone()[0] or 0
+
+    st.markdown("## 📈 Your Practice Stats")
+
+    col1, col2 = st.columns([3,1])
+
+    with col1:
+        st.metric("Total Questions Practiced", user_total_reads)
+
+    with col2:
+        if st.button("Reset Total Reads"):
+
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    DELETE FROM practice_log
+                    WHERE user_id = %s
+                """, (user_id,))
+
+                conn.commit()
+
+            st.success("Your total practice data has been reset.")
+            st.rerun()
+
+    # ====================================================
+    # 3️⃣ SUBJECT-WISE USER READ COUNT
+    # ====================================================
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT subject, COUNT(*)
+            FROM practice_log
+            WHERE user_id = %s
+            GROUP BY subject
+            ORDER BY COUNT(*) DESC
+        """, (user_id,))
+
+        subject_reads = cur.fetchall()
+
+    if subject_reads:
+
+        st.markdown("### 📊 Subject-wise Practice")
+
+        for subject, count in subject_reads:
+
+            col1, col2 = st.columns([3,1])
+
+            with col1:
+                st.write(f"{subject} : {count}")
+
+            with col2:
+                if st.button(f"Reset {subject}", key=f"reset_{subject}"):
+
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+
+                        cur.execute("""
+                            DELETE FROM practice_log
+                            WHERE user_id = %s
+                            AND subject = %s
+                        """, (user_id, subject))
+
+                        conn.commit()
+
+                    st.success(f"{subject} data reset.")
+                    st.rerun()
+
+    else:
+        st.info("No practice data yet.")
+
+    st.markdown("---")
+
+# ============================================================
+# MARKED QUESTIONS
+# ============================================================
+
+elif mode == "Marked Questions":
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT si_no, subject, question, answer, difficulty,
+                   COALESCE(reading_times,0), COALESCE(is_marked,0)
+            FROM quiz
+            WHERE is_marked = 1
+        """)
+
+        rows = cur.fetchall()
+
+    if not rows:
+        st.warning("No marked questions.")
+        st.stop()
+
+    if "marked_index" not in st.session_state:
+        st.session_state.marked_index = 0
+
+    q = rows[st.session_state.marked_index]
+    si_no, subject, question, answer, diff, reads, marked = q
+
+    st.write(f"**ID:** {si_no}")
+    st.write(question)
+
+    if st.button("Show Answer"):
+        st.success(answer)
+
+    if st.button("Unmark"):
+        toggle_mark(si_no, marked)
+        st.rerun()
+
+    if st.button("Next"):
+        st.session_state.marked_index += 1
+        st.rerun()
+
+
+# ============================================================
+# EXAM MODE
+# ============================================================
+
+elif mode == "Exam Mode":
+
+    duration = st.number_input("Duration (minutes)", 1, 180, 30)
+
+    if st.button("Start Exam"):
+
+        st.session_state.exam = get_questions()
+        st.session_state.exam_index = 0
+        st.session_state.start_time = datetime.now()
+        st.session_state.duration = duration
+
+        st.rerun()
+
+    if "exam" in st.session_state:
+
+        elapsed = (datetime.now() - st.session_state.start_time).total_seconds()
+        remaining = st.session_state.duration * 60 - elapsed
+
+        if remaining <= 0:
+            st.error("Time Over")
+            st.stop()
+
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
+
+        st.markdown(f"## ⏳ {minutes:02d}:{seconds:02d}")
+
+        q = st.session_state.exam[st.session_state.exam_index]
+
+        st.write(q[2])
+
+        if st.button("Next Question"):
+            st.session_state.exam_index += 1
+            st.rerun()
+
+        time.sleep(1)
+        st.rerun()
+
+
+# ============================================================
+# ANALYTICS (PER USER)
+# ============================================================
+
+elif mode == "Analytics":
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT date, COUNT(*)
+            FROM practice_log
+            WHERE user_id = %s
+            GROUP BY date
+            ORDER BY date
+        """, (st.session_state.user_id,))
+
+        rows = cur.fetchall()
 
     if rows:
 
-        dates=[r[0] for r in rows]
-        counts=[r[1] for r in rows]
+        dates = [r[0] for r in rows]
+        counts = [r[1] for r in rows]
 
-        df=pd.DataFrame(
-        {"Questions Practiced":counts},
-        index=dates
+        formatted_dates = [
+            datetime.strptime(d, "%Y-%m-%d").strftime("%d %b")
+            for d in dates
+        ]
+
+        df = pd.DataFrame(
+            {"Questions Practiced": counts},
+            index=formatted_dates
         )
 
         st.bar_chart(df)
+
+    else:
+        st.info("No data yet")
 
 # =====================================================
 # USER MANAGEMENT
 # =====================================================
 
-elif mode=="User Management":
+elif mode == "User Management":
 
-    if st.session_state.role!="admin":
-
+    if st.session_state.role != "admin":
         st.error("Admin access required")
         st.stop()
 
-    st.subheader("Users")
+    st.subheader("👥 User Management Panel")
+
+    # ========================================================
+    # 1️⃣ LIST USERS
+    # ========================================================
 
     with get_connection() as conn:
-
-        cur=conn.cursor()
+        cur = conn.cursor()
 
         cur.execute("""
-        SELECT id,username,role,is_active,last_active
-        FROM users
-        ORDER BY username
+            SELECT id, username, role, is_active, last_active
+            FROM users
+            ORDER BY username
         """)
+        users = cur.fetchall()
 
-        users=cur.fetchall()
+    st.markdown("### 📋 All Users")
 
-    for uid,uname,role,active,last in users:
+    for user_id, username, role, is_active, last_active in users:
 
-        st.write(f"{uname} | {role} | Active:{active} | Last:{last}")
+        col1, col2, col3, col4, col5 = st.columns([2,1,1,2,2])
+
+        with col1:
+            st.write(username)
+
+        with col2:
+            st.write(role)
+
+        with col3:
+            if is_active:
+                st.success("Active")
+            else:
+                st.error("Inactive")
+
+        with col4:
+            st.write(last_active if last_active else "Never")
+
+        with col5:
+            if st.button("Delete", key=f"delete_{user_id}"):
+
+                with get_connection() as conn:
+                    cur = conn.cursor()
+
+                    cur.execute(
+                        "DELETE FROM users WHERE id = %s",
+                        (user_id,)
+                    )
+
+                    cur.execute(
+                        "DELETE FROM practice_log WHERE user_id = %s",
+                        (user_id,)
+                    )
+
+                    conn.commit()
+
+                st.success("User deleted")
+                st.rerun()
+
+    st.markdown("---")
+
+    # ========================================================
+    # 2️⃣ CREATE USER
+    # ========================================================
+
+    st.markdown("### ➕ Create New User")
+
+    new_username = st.text_input("Username")
+    new_password = st.text_input("Password", type="password")
+    new_role = st.selectbox("Role", ["student", "admin"])
+
+    if st.button("Create User"):
+
+        try:
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, role)
+                    VALUES (%s, %s, %s)
+                """, (
+                    new_username,
+                    hash_password(new_password),
+                    new_role
+                ))
+
+                conn.commit()
+
+            st.success("User created successfully")
+            st.rerun()
+
+        except Exception as e:
+            st.error("Username already exists")
+
+    st.markdown("---")
+
+    # ========================================================
+    # 3️⃣ MODIFY USER
+    # ========================================================
+
+    st.markdown("### ✏ Modify User")
+
+    usernames = [u[1] for u in users]
+
+    selected_user = st.selectbox("Select User", usernames)
+
+    new_password = st.text_input(
+        "New Password (leave blank to keep same)",
+        type="password"
+    )
+
+    new_role = st.selectbox("New Role", ["student", "admin"])
+
+    if st.button("Update User"):
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            if new_password:
+
+                cur.execute("""
+                    UPDATE users
+                    SET password_hash = %s,
+                        role = %s
+                    WHERE username = %s
+                """, (
+                    hash_password(new_password),
+                    new_role,
+                    selected_user
+                ))
+
+            else:
+
+                cur.execute("""
+                    UPDATE users
+                    SET role = %s
+                    WHERE username = %s
+                """, (
+                    new_role,
+                    selected_user
+                ))
+
+            conn.commit()
+
+        st.success("User updated successfully")
+        st.rerun()
+
+# ========================================================
+# INSERT QUESTION
+# ========================================================
+
+elif mode == "Insert Question":
+
+    st.subheader("➕ Insert New Question")
+
+    if "insert_question" not in st.session_state:
+        st.session_state.insert_question = ""
+
+    if "insert_answer" not in st.session_state:
+        st.session_state.insert_answer = ""
+
+    question = st.text_area("Enter Question", key="insert_question")
+    answer = st.text_area("Enter Answer", key="insert_answer")
+
+    subject = st.selectbox("Select Subject", SUBJECTS)
+
+    difficulty_label = st.selectbox(
+        "Difficulty",
+        ["Easy", "Moderate", "Difficult"]
+    )
+
+    difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
+    difficulty = difficulty_map[difficulty_label]
+
+    col1,col2 = st.columns(2)
+
+    with col1:
+
+        if st.button("💾 Save Question"):
+
+            if not question.strip() or not answer.strip():
+                st.error("Question and Answer cannot be empty.")
+
+            else:
+
+                with get_connection() as conn:
+                    cur = conn.cursor()
+
+                    cur.execute("""
+                        INSERT INTO quiz (subject,question,answer,difficulty)
+                        VALUES (%s,%s,%s,%s)
+                        RETURNING si_no
+                    """,(
+                        subject,
+                        question.strip(),
+                        answer.strip(),
+                        difficulty
+                    ))
+
+                    inserted_id = cur.fetchone()[0]
+
+                    conn.commit()
+
+                st.success(f"Question added successfully! 🆔 ID: {inserted_id}")
+                st.info(f"New Question ID: {inserted_id}")
+
+                st.session_state.pop("insert_question",None)
+                st.session_state.pop("insert_answer",None)
+                st.rerun()
+
+    with col2:
+
+        if st.button("🔄 Reset Fields"):
+
+            st.session_state.pop("insert_question",None)
+            st.session_state.pop("insert_answer",None)
+            st.rerun()
+
+
+# ========================================================
+# IMPORT FROM TXT
+# ========================================================
+
+elif mode == "Import from TXT":
+
+    st.subheader("📂 Import Questions from TXT")
+
+    uploaded_file = st.file_uploader("Upload TXT File",type=["txt"])
+
+    difficulty_label = st.selectbox(
+        "Difficulty",
+        ["Easy","Moderate","Difficult"]
+    )
+
+    difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
+    difficulty = difficulty_map[difficulty_label]
+
+    if uploaded_file is not None:
+
+        file_content = uploaded_file.read().decode("utf-8")
+        lines = [l.strip() for l in file_content.split("\n") if l.strip()]
+
+        inserted = 0
+        current_subject = "General"
+
+        if st.button("Import Now"):
+
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                for line in lines:
+
+                    if line.startswith("* "):
+                        current_subject = line[2:].strip()
+                        continue
+
+                    if "-->" in line:
+                        question,answer = line.split("-->",1)
+                        question = question.strip()
+                        answer = answer.strip()
+                    else:
+                        continue
+
+                    if question and answer:
+
+                        cur.execute("""
+                            INSERT INTO quiz (subject,question,answer,difficulty)
+                            VALUES (%s,%s,%s,%s)
+                        """,(
+                            current_subject,
+                            question,
+                            answer,
+                            difficulty
+                        ))
+
+                        inserted += 1
+
+                conn.commit()
+
+            st.success(f"{inserted} questions imported successfully.")
+            st.rerun()
+
+
+# ========================================================
+# UPDATE / DELETE QUESTION
+# ========================================================
+
+elif mode == "Update Question":
+
+    st.subheader("✏ Update / Delete Question")
+
+    qid = st.number_input("Enter Question ID",min_value=1,step=1)
+
+    if st.button("Load Question"):
+
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT subject,question,answer,difficulty
+                FROM quiz
+                WHERE si_no = %s
+            """,(qid,))
+
+            row = cur.fetchone()
+
+        if row:
+
+            st.session_state.edit_data = {
+                "id":qid,
+                "subject":row[0],
+                "question":row[1],
+                "answer":row[2],
+                "difficulty":row[3]
+            }
+
+        else:
+            st.error("Question not found.")
+
+    if "edit_data" in st.session_state:
+
+        data = st.session_state.edit_data
+
+        new_question = st.text_area("Question",value=data["question"])
+        new_answer = st.text_area("Answer",value=data["answer"])
+
+        new_subject = st.selectbox(
+            "Subject",
+            SUBJECTS,
+            index=SUBJECTS.index(data["subject"])
+        )
+
+        difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
+        reverse_map = {1:"Easy",2:"Moderate",3:"Difficult"}
+
+        difficulty_label = st.selectbox(
+            "Difficulty",
+            ["Easy","Moderate","Difficult"],
+            index=["Easy","Moderate","Difficult"].index(
+                reverse_map[data["difficulty"]]
+            )
+        )
+
+        col1,col2 = st.columns(2)
+
+        with col1:
+
+            if st.button("Save Changes"):
+
+                if not new_question.strip() and not new_answer.strip():
+
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+
+                        cur.execute(
+                            "DELETE FROM quiz WHERE si_no = %s",
+                            (data["id"],)
+                        )
+
+                        conn.commit()
+
+                    st.success("Question deleted successfully.")
+                    st.session_state.pop("edit_data",None)
+                    st.rerun()
+
+                else:
+
+                    with get_connection() as conn:
+                        cur = conn.cursor()
+
+                        cur.execute("""
+                            UPDATE quiz
+                            SET subject=%s,
+                                question=%s,
+                                answer=%s,
+                                difficulty=%s
+                            WHERE si_no=%s
+                        """,(
+                            new_subject,
+                            new_question.strip(),
+                            new_answer.strip(),
+                            difficulty_map[difficulty_label],
+                            data["id"]
+                        ))
+
+                        conn.commit()
+
+                    st.success("Question updated successfully.")
+                    st.session_state.pop("edit_data",None)
+                    st.rerun()
+
+        with col2:
+
+            if st.button("Cancel"):
+                st.session_state.pop("edit_data",None)
+                st.rerun()
+
 
 
 
