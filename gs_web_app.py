@@ -233,25 +233,34 @@ def get_questions(subject=None,difficulty=None,order="random"):
 # UPDATE READ COUNT
 # =====================================================
 
-def update_read_count(si_no,subject):
+def update_read_count(si_no, subject):
 
-    today=datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
 
     with get_connection() as conn:
-        cur=conn.cursor()
+        cur = conn.cursor()
 
+        # Update question read count
         cur.execute(
-        "UPDATE quiz SET reading_times=reading_times+1 WHERE si_no=%s",
-        (si_no,)
+            """
+            UPDATE quiz
+            SET reading_times = reading_times + 1
+            WHERE si_no = %s
+            """,
+            (si_no,)
         )
 
+        # Insert practice log safely
         cur.execute(
-        "INSERT INTO practice_log(user_id,date,subject) VALUES(%s,%s,%s)",
-        (st.session_state.user_id,today,subject)
+            """
+            INSERT INTO practice_log(user_id,date,subject)
+            VALUES(%s,%s,%s)
+            ON CONFLICT DO NOTHING
+            """,
+            (st.session_state.user_id, today, subject)
         )
 
         conn.commit()
-
 def toggle_mark(si_no, current_status):
     conn = get_connection()
     cur = conn.cursor()
@@ -1130,6 +1139,7 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
 
 
 
