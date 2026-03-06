@@ -62,7 +62,7 @@ def login_user(username, password):
 
         row = cur.fetchone()
 
-        if row and row[1] == hash_password(password):
+        if row and (row[1] == password or row[1] == hash_password(password)):
 
             cur.execute("""
             UPDATE users
@@ -398,5 +398,6 @@ elif mode=="User Management":
     for uid,uname,role,active,last in users:
 
         st.write(f"{uname} | {role} | Active:{active} | Last:{last}")
+
 
 
