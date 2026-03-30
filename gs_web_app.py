@@ -264,6 +264,46 @@ def update_read_count(si_no, subject):
                 si_no
             )
         )
+                
+        conn.commit()
+
+def update_bulk_read_count(question_list):
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    ids = [q[0] for q in question_list]
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        # Bulk update
+        cur.execute(
+            """
+            UPDATE quiz
+            SET reading_times = reading_times + 1
+            WHERE si_no = ANY(%s)
+            """,
+            (ids,)
+        )
+
+        # Bulk insert logs
+        log_data = [
+            (
+                st.session_state.user_id,
+                today,
+                q[1],
+                q[0]
+            )
+            for q in question_list
+        ]
+
+        cur.executemany(
+            """
+            INSERT INTO practice_log(user_id,date,subject,question_id)
+            VALUES(%s,%s,%s,%s)
+            """,
+            log_data
+        )
 
         conn.commit()
         
