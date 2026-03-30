@@ -1236,7 +1236,6 @@ elif mode == "Bulk View":
         st.warning("No questions found")
         st.stop()
 
-    # pagination
     if "bulk_index" not in st.session_state:
         st.session_state.bulk_index = 0
 
@@ -1245,6 +1244,14 @@ elif mode == "Bulk View":
 
     chunk = questions[start:end]
 
+    # ✅ Prevent duplicate updates
+    page_key = f"bulk_updated_{start}"
+
+    if page_key not in st.session_state:
+        update_bulk_read_count(chunk)
+        st.session_state[page_key] = True
+
+    # ✅ Display questions
     for i, q in enumerate(chunk, start=1):
         si_no, subject, question, answer, diff, reads, marked = q
 
