@@ -176,6 +176,7 @@ mode = st.sidebar.selectbox(
         "Live Dashboard",
         "Subject Practice",
         "Mixed Practice",
+        "Bulk View",
         "Exam Mode",
         "Update Question",
         "Insert Question",
@@ -422,6 +423,30 @@ if mode in ["Subject Practice", "Mixed Practice"]:
     st.write(f"**Reads:** {reads}")
 
     st.write(question)
+    
+    colA, colB = st.columns(2)
+
+    with colA:
+        if st.button("⭐ Mark / Unmark"):
+            toggle_mark(si_no, marked)
+            st.success("Updated")
+
+    with colB:
+        new_subject = st.selectbox(
+            "Change Subject",
+            SUBJECTS,
+            key=f"subject_change_{si_no}"
+        )
+
+    if st.button("Update Subject"):
+        with get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE quiz SET subject=%s WHERE si_no=%s",
+                (new_subject, si_no)
+            )
+            conn.commit()
+        st.success("Subject updated")
 
     # -------------------------------------------------------
 
@@ -773,7 +798,7 @@ elif mode == "Analytics":
         counts = [r[1] for r in rows]
 
         formatted_dates = [
-            datetime.strptime(d, "%Y-%m-%d").strftime("%d %b")
+            d.strftime("%d %b") if hasattr(d, "strftime") else str(d)
             for d in dates
         ]
 
@@ -782,7 +807,7 @@ elif mode == "Analytics":
             index=formatted_dates
         )
 
-        st.bar_chart(df)
+        st.line_chart(df)
 
     else:
         st.info("No data yet")
@@ -1192,6 +1217,53 @@ elif mode == "Update Question":
             if st.button("Cancel"):
                 st.session_state.pop("edit_data",None)
                 st.rerun()
+
+# ========================================================
+#  BULK VIEW
+# ========================================================
+
+elif mode == "Bulk View":
+
+    st.subheader("📚 Bulk Questions View (30 at once)")
+
+    subject = st.selectbox("Filter by Subject", ["All"] + SUBJECTS)
+
+    questions = get_questions(
+        subject=None if subject == "All" else subject
+    )
+
+    if not questions:
+        st.warning("No questions found")
+        st.stop()
+
+    # pagination
+    if "bulk_index" not in st.session_state:
+        st.session_state.bulk_index = 0
+
+    start = st.session_state.bulk_index
+    end = start + 30
+
+    chunk = questions[start:end]
+
+    for i, q in enumerate(chunk, start=1):
+        si_no, subject, question, answer, diff, reads, marked = q
+
+        st.markdown(f"### Q{i} (ID: {si_no})")
+        st.write(question)
+        st.success(answer)
+        st.markdown("---")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("⬅ Previous") and start > 0:
+            st.session_state.bulk_index -= 30
+            st.rerun()
+
+    with col2:
+        if st.button("Next ➡"):
+            st.session_state.bulk_index += 30
+            st.rerun()
 
 
 
