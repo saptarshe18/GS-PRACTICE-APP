@@ -1296,6 +1296,7 @@ elif mode == "Bulk View":
         si_no, subject, question, answer, diff, reads, marked = q
 
         st.markdown(f"### Q{i} (ID: {si_no})")
+        st.markdown(f"**Subject:** `{subject}`")
         st.write(question)
         st.success(answer)
         st.markdown("---")
