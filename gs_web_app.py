@@ -1299,19 +1299,34 @@ elif mode == "Bulk View":
         st.markdown(f"**Subject:** `{subject}`")
         st.write(question)
         st.success(answer)
+
+        # ✅ Action buttons row
+        colA, colB, colC = st.columns([1, 1, 2])
+
+        # ✅ Mark / Unmark
+        with colA:
+            mark_label = "⭐ Marked" if marked else "☆ Mark"
+            if st.button(mark_label, key=f"mark_{si_no}"):
+                toggle_mark_question(si_no, not marked)
+                st.rerun()
+
+        # ✅ Difficulty Selector
+        with colB:
+            new_diff = st.selectbox(
+                "Difficulty",
+                ["Easy", "Medium", "Hard"],
+                index=["Easy", "Medium", "Hard"].index(diff) if diff in ["Easy", "Medium", "Hard"] else 0,
+                key=f"diff_{si_no}"
+            )
+
+        # ✅ Update Difficulty Button
+        with colC:
+            if st.button("Update Difficulty", key=f"update_diff_{si_no}"):
+                update_question_difficulty(si_no, new_diff)
+                st.success("Updated!")
+                st.rerun()
+
         st.markdown("---")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("⬅ Previous") and start > 0:
-            st.session_state.bulk_index -= 30
-            st.rerun()
-
-    with col2:
-        if st.button("Next ➡"):
-            st.session_state.bulk_index += 30
-            st.rerun()
 
 
 
