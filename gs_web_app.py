@@ -1310,21 +1310,21 @@ elif mode == "Bulk View":
                 toggle_mark_question(si_no, not marked)
                 st.rerun()
 
-        # ✅ Difficulty Selector
-        with colB:
-            new_diff = st.selectbox(
-                "Difficulty",
-                ["Easy", "Medium", "Hard"],
-                index=["Easy", "Medium", "Hard"].index(diff) if diff in ["Easy", "Medium", "Hard"] else 0,
-                key=f"diff_{si_no}"
-            )
+        # ✅ Initialize session state for difficulty
+        if f"diff_{si_no}" not in st.session_state:
+            st.session_state[f"diff_{si_no}"] = diff
 
-        # ✅ Update Difficulty Button
-        with colC:
-            if st.button("Update Difficulty", key=f"update_diff_{si_no}"):
-                update_question_difficulty(si_no, new_diff)
-                st.success("Updated!")
-                st.rerun()
+        # ✅ Difficulty selector (stable)
+        new_diff = st.selectbox(
+            "Difficulty",
+            ["Easy", "Medium", "Hard"],
+            key=f"diff_{si_no}"
+        )
+
+        # ✅ Update button
+        if st.button("Update Difficulty", key=f"update_diff_{si_no}"):
+            update_question_difficulty(si_no, new_diff)
+            st.success("Updated!")
 
         st.markdown("---")
 
