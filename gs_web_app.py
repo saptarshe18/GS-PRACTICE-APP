@@ -1301,7 +1301,7 @@ elif mode == "Bulk View":
         st.success(answer)
 
         # ✅ Action buttons row
-        colA, colB, colC = st.columns([1, 1, 2])
+        colA, colB = st.columns([1, 3])
 
         # ✅ Mark / Unmark
         with colA:
@@ -1309,22 +1309,6 @@ elif mode == "Bulk View":
             if st.button(mark_label, key=f"mark_{si_no}"):
                 toggle_mark_question(si_no, not marked)
                 st.rerun()
-
-        # ✅ Initialize session state for difficulty
-        if f"diff_{si_no}" not in st.session_state:
-            st.session_state[f"diff_{si_no}"] = diff
-
-        # ✅ Difficulty selector (stable)
-        new_diff = st.selectbox(
-            "Difficulty",
-            ["Easy", "Medium", "Hard"],
-            key=f"diff_{si_no}"
-        )
-
-        # ✅ Update button
-        if st.button("Update Difficulty", key=f"update_diff_{si_no}"):
-            update_question_difficulty(si_no, new_diff)
-            st.success("Updated!")
 
         st.markdown("---")
 
