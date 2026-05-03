@@ -1264,6 +1264,25 @@ elif mode == "Update Question":
 
 elif mode == "Bulk View":
 
+    # ✅ SAFE INITIALIZATION (prevents crash)
+    if "bulk_started" not in st.session_state:
+        st.session_state.bulk_started = False
+
+    if "bulk_subject" not in st.session_state:
+        st.session_state.bulk_subject = "All"
+
+    if "bulk_q_count" not in st.session_state:
+        st.session_state.bulk_q_count = 30
+
+    if "bulk_index" not in st.session_state:
+        st.session_state.bulk_index = 0
+
+    if "practice_log" not in st.session_state:
+        st.session_state.practice_log = []
+
+    if "show_summary" not in st.session_state:
+        st.session_state.show_summary = False
+
     st.subheader("📚 Bulk Practice Mode")
 
     # ====================================================
@@ -1289,7 +1308,7 @@ elif mode == "Bulk View":
     # ====================================================
     # STEP 2: LOAD QUESTIONS
     # ====================================================
-    subject = st.session_state.bulk_subject
+    subject = st.session_state.get("bulk_subject", "All")
 
     questions = get_questions(
         subject=None if subject == "All" else subject
