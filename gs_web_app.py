@@ -524,35 +524,65 @@ if mode in ["Subject Practice", "Mixed Practice"]:
 
 
 # ============================================================
-# PRACTICE SUMMARY
+# PRACTICE SUMMARY (FIXED & SAFE)
 # ============================================================
 
 if st.session_state.get("show_summary", False):
 
     st.markdown("## 📊 Practice Session Summary")
 
-    st.metric(
-        "Total Questions Reviewed",
-        len(st.session_state.get("reviewed", []))
-    )
+    # ✅ Total reviewed (safe)
+    total_reviewed = len(st.session_state.get("reviewed", []))
 
+    st.metric("Total Questions Reviewed", total_reviewed)
+
+    # ✅ Difficulty metrics (safe access)
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Easy", st.session_state.session_easy)
-    col2.metric("Moderate", st.session_state.session_moderate)
-    col3.metric("Difficult", st.session_state.session_difficult)
+    col1.metric("Easy", st.session_state.get("session_easy", 0))
+    col2.metric("Moderate", st.session_state.get("session_moderate", 0))
+    col3.metric("Difficult", st.session_state.get("session_difficult", 0))
 
-    if st.button("Start New Session"):
+    # ============================================================
+    # 🔹 SUBJECT-WISE BREAKDOWN (OPTIONAL BUT USEFUL)
+    # ============================================================
+    practice_log = st.session_state.get("practice_log", [])
 
-        for key in [
-            "practice_active",
-            "reviewed",
-            "session_easy",
-            "session_moderate",
-            "session_difficult",
-            "show_summary"
-        ]:
-            st.session_state[key] = 0 if "session" in key else False
+    if practice_log:
+        st.markdown("### 📘 Subject-wise Distribution")
+
+        subject_count = {}
+        for _, sub in practice_log:
+            subject_count[sub] = subject_count.get(sub, 0) + 1
+
+        for sub, count in subject_count.items():
+            st.write(f"- {sub}: {count}")
+
+    # ============================================================
+    # 🔹 RESET SESSION (FIXED LOGIC)
+    # ============================================================
+    if st.button("🔄 Start New Session"):
+
+        reset_defaults = {
+            "bulk_started": False,
+            "bulk_subject": "All",
+            "bulk_q_count": 30,
+            "bulk_index": 0,
+            "practice_log": [],
+            "reviewed": [],
+            "show_summary": False,
+            "session_easy": 0,
+            "session_moderate": 0,
+            "session_difficult": 0,
+        }
+
+        for key, value in reset_defaults.items():
+            st.session_state[key] = value
+
+        # 🔹 remove page tracking keys
+        for key in list(st.session_state.keys()):
+            if key.startswith("bulk_updated_"):
+                del st.session_state[key]
 
         st.rerun()
 # =====================================================
