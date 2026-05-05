@@ -1259,59 +1259,69 @@ elif mode == "Update Question":
                 st.rerun()
 
 # ========================================================
-#  BULK VIEW (SESSION BASED)
+#  BULK VIEW (SESSION BASED - CLEAN VERSION)
 # ========================================================
 
 elif mode == "Bulk View":
 
-    # ✅ SAFE INITIALIZATION (prevents crash)
-    if "bulk_started" not in st.session_state:
-        st.session_state.bulk_started = False
-        
-    if "reviewed" not in st.session_state:
-        st.session_state.reviewed = []
+    # ====================================================
+    # 🔹 SESSION STATE INITIALIZATION
+    # ====================================================
+    defaults = {
+        "bulk_started": False,
+        "bulk_subject": "All",
+        "bulk_q_count": 30,
+        "bulk_index": 0,
+        "practice_log": [],
+        "reviewed": [],
+        "show_summary": False,
+    }
 
-    if "bulk_subject" not in st.session_state:
-        st.session_state.bulk_subject = "All"
-
-    if "bulk_q_count" not in st.session_state:
-        st.session_state.bulk_q_count = 30
-
-    if "bulk_index" not in st.session_state:
-        st.session_state.bulk_index = 0
-
-    if "practice_log" not in st.session_state:
-        st.session_state.practice_log = []
-
-    if "show_summary" not in st.session_state:
-        st.session_state.show_summary = False
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
     st.subheader("📚 Bulk Practice Mode")
 
     # ====================================================
-    # STEP 1: INPUT PANEL (only once per session)
+    # 🔹 STEP 1: INPUT PANEL (FIXED)
     # ====================================================
-    if "bulk_started" not in st.session_state:
+    if not st.session_state.bulk_started:
 
-        st.session_state.bulk_started = False
+        q_count = st.number_input(
+            "Enter number of questions per set",
+            min_value=1,
+            max_value=100,
+            value=30
+        )
 
-        q_count = st.number_input("Enter number of questions per set", min_value=1, max_value=100, value=30)
-        subject = st.selectbox("Select Subject (Optional)", ["All"] + SUBJECTS)
+        subject = st.selectbox(
+            "Select Subject (Optional)",
+            ["All"] + SUBJECTS
+        )
 
         if st.button("Start Practice"):
             st.session_state.bulk_started = True
             st.session_state.bulk_q_count = q_count
             st.session_state.bulk_subject = subject
             st.session_state.bulk_index = 0
-            st.session_state.practice_log = []  # store practiced questions
+            st.session_state.practice_log = []
+            st.session_state.reviewed = []
+            st.session_state.show_summary = False
+
+            # 🔹 Clear old page keys
+            for key in list(st.session_state.keys()):
+                if key.startswith("bulk_updated_"):
+                    del st.session_state[key]
+
             st.rerun()
 
         st.stop()
 
     # ====================================================
-    # STEP 2: LOAD QUESTIONS
+    # 🔹 STEP 2: LOAD QUESTIONS
     # ====================================================
-    subject = st.session_state.get("bulk_subject", "All")
+    subject = st.session_state.bulk_subject
 
     questions = get_questions(
         subject=None if subject == "All" else subject
@@ -1327,23 +1337,31 @@ elif mode == "Bulk View":
 
     chunk = questions[start:end]
 
+    if not chunk:
+        st.info("No more questions available.")
+        st.session_state.show_summary = True
+
     # ====================================================
-    # STEP 3: TRACK PRACTICE (IMPORTANT)
+    # 🔹 STEP 3: TRACK PRACTICE (SAFE)
     # ====================================================
     page_key = f"bulk_updated_{start}"
 
     if page_key not in st.session_state:
+
         update_bulk_read_count(chunk)
 
-        # ✅ Store practiced questions
         for q in chunk:
             si_no, subject, *_ = q
-            st.session_state.practice_log.append((si_no, subject))
+
+            # avoid duplicates
+            if si_no not in st.session_state.reviewed:
+                st.session_state.reviewed.append(si_no)
+                st.session_state.practice_log.append((si_no, subject))
 
         st.session_state[page_key] = True
 
     # ====================================================
-    # STEP 4: DISPLAY QUESTIONS
+    # 🔹 STEP 4: DISPLAY QUESTIONS
     # ====================================================
     for i, q in enumerate(chunk, start=1):
         si_no, subject, question, answer, diff, reads, marked = q
@@ -1364,47 +1382,65 @@ elif mode == "Bulk View":
         st.markdown("---")
 
     # ====================================================
-    # STEP 5: NAVIGATION BUTTONS
+    # 🔹 STEP 5: NAVIGATION
     # ====================================================
     col1, col2 = st.columns(2)
 
-    # 👉 NEXT SET
     with col1:
         if st.button("➡️ Next Set"):
             st.session_state.bulk_index += q_count
             st.rerun()
 
-    # 👉 COMPLETE SESSION
     with col2:
         if st.button("✅ Complete"):
             st.session_state.show_summary = True
             st.rerun()
 
     # ====================================================
-    # STEP 6: SUMMARY VIEW
+    # 🔹 STEP 6: SUMMARY
     # ====================================================
-    if st.session_state.get("show_summary", False):
+    if st.session_state.show_summary:
 
         st.subheader("📊 Practice Summary")
 
-        total = len(st.session_state.practice_log)
+        total = len(st.session_state.reviewed)
 
-        # Subject-wise count
+        # ✅ FIXED METRIC (no crash)
+        st.metric("Total Questions Reviewed", total)
+
+        # Subject-wise distribution
         subject_count = {}
         for _, sub in st.session_state.practice_log:
             subject_count[sub] = subject_count.get(sub, 0) + 1
-
-        st.write(f"**Total Questions Practiced:** {total}")
 
         st.write("### Subject-wise Distribution")
         for sub, cnt in subject_count.items():
             st.write(f"- {sub}: {cnt}")
 
-        # Optional reset button
+        # ====================================================
+        # 🔹 RESET BUTTON
+        # ====================================================
         if st.button("🔄 Start New Session"):
-            for key in list(st.session_state.keys()):
-                if key.startswith("bulk_") or key in ["practice_log", "show_summary"]:
+
+            keys_to_delete = [
+                "bulk_started",
+                "bulk_subject",
+                "bulk_q_count",
+                "bulk_index",
+                "practice_log",
+                "reviewed",
+                "show_summary",
+            ]
+
+            for key in keys_to_delete:
+                if key in st.session_state:
                     del st.session_state[key]
+
+            # clear page keys
+            for key in list(st.session_state.keys()):
+                if key.startswith("bulk_updated_"):
+                    del st.session_state[key]
+
             st.rerun()
 
 
