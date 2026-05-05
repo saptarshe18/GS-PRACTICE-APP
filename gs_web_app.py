@@ -1268,6 +1268,9 @@ elif mode == "Bulk View":
     if "bulk_started" not in st.session_state:
         st.session_state.bulk_started = False
 
+    if "reviewed" not in st.session_state:
+    st.session_state.reviewed = []
+
     if "bulk_subject" not in st.session_state:
         st.session_state.bulk_subject = "All"
 
