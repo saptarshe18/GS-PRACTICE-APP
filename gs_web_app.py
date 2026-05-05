@@ -533,7 +533,7 @@ if st.session_state.get("show_summary", False):
 
     st.metric(
         "Total Questions Reviewed",
-        st.session_state.reviewed
+        len(st.session_state.get("reviewed", []))
     )
 
     col1, col2, col3 = st.columns(3)
