@@ -173,6 +173,7 @@ if st.sidebar.button("Logout"):
 mode = st.sidebar.selectbox(
     "Mode",
     [
+        "Notes",
         "Live Dashboard",
         "Subject Practice",
         "Mixed Practice",
@@ -187,6 +188,252 @@ mode = st.sidebar.selectbox(
     ]
 )
 
+# ============================================================
+# NOTES FUNCTION COMMON THINGS
+# ============================================================
+def add_subject(subject_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_subjects(subject_name)
+        VALUES(%s)
+        """,
+        (subject_name,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_all_subjects():
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, subject_name
+        FROM notes_subjects
+        ORDER BY subject_name
+    """)
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_subject(subject_id, updated_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_subjects
+        SET subject_name=%s
+        WHERE id=%s
+        """,
+        (updated_name, subject_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_subject(subject_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_subjects
+        WHERE id=%s
+        """,
+        (subject_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def add_chapter(subject_id, chapter_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_chapters(subject_id, chapter_name)
+        VALUES(%s, %s)
+        """,
+        (subject_id, chapter_name)
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_chapters(subject_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, subject_id, chapter_name
+        FROM notes_chapters
+        WHERE subject_id=%s
+        ORDER BY chapter_name
+        """,
+        (subject_id,)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_chapter(chapter_id, updated_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_chapters
+        SET chapter_name=%s
+        WHERE id=%s
+        """,
+        (updated_name, chapter_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_chapter(chapter_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_chapters
+        WHERE id=%s
+        """,
+        (chapter_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def add_note(chapter_id, note_text, image_url):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_content(
+            chapter_id,
+            note_text,
+            image_path
+        )
+        VALUES(%s, %s, %s)
+        """,
+        (
+            chapter_id,
+            note_text,
+            image_url
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_notes(chapter_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            id,
+            chapter_id,
+            note_text,
+            image_path,
+            created_at
+        FROM notes_content
+        WHERE chapter_id=%s
+        ORDER BY created_at
+        """,
+        (chapter_id,)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_note(note_id, note_text, image_url):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_content
+        SET
+            note_text=%s,
+            image_path=%s
+        WHERE id=%s
+        """,
+        (
+            note_text,
+            image_url,
+            note_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_note(note_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_content
+        WHERE id=%s
+        """,
+        (note_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def upload_note_image(uploaded_file):
+
+    ext = uploaded_file.name.split(".")[-1]
+
+    filename = f"{uuid.uuid4()}.{ext}"
+
+    filepath = f"notes/{filename}"
+
+    supabase.storage.from_("notes-images").upload(
+        filepath,
+        uploaded_file.getvalue()
+    )
+
+    public_url = supabase.storage.from_(
+        "notes-images"
+    ).get_public_url(filepath)
+
+    return public_url
 # =====================================================
 # FETCH QUESTIONS
 # =====================================================
@@ -1492,3 +1739,287 @@ elif mode == "Bulk View":
                     del st.session_state[key]
 
             st.rerun()
+
+
+# ============================================================
+# NOTES MODE
+# ============================================================
+
+elif mode == "Notes":
+
+    st.title("📚 Notes Management")
+
+    notes_mode = st.sidebar.radio(
+        "Notes Menu",
+        [
+            "View Notes",
+            "Manage Subjects",
+            "Manage Chapters",
+            "Manage Notes"
+        ]
+    )
+
+    # ========================================================
+    # SUBJECT MANAGEMENT
+    # ========================================================
+
+    if notes_mode == "Manage Subjects":
+
+        st.subheader("📘 Subject Management")
+
+        new_subject = st.text_input("New Subject")
+
+        if st.button("Add Subject"):
+
+            if new_subject.strip():
+
+                add_subject(new_subject)
+
+                st.success("Subject Added")
+                st.rerun()
+
+        subjects = get_all_subjects()
+
+        for sub in subjects:
+
+            col1, col2 = st.columns([4,1])
+
+            with col1:
+
+                updated_name = st.text_input(
+                    "Subject",
+                    value=sub["subject_name"],
+                    key=f"sub_{sub['id']}"
+                )
+
+                if updated_name != sub["subject_name"]:
+
+                    update_subject(
+                        sub["id"],
+                        updated_name
+                    )
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_sub_{sub['id']}"
+                ):
+
+                    delete_subject(sub["id"])
+                    st.rerun()
+
+    # ========================================================
+    # CHAPTER MANAGEMENT
+    # ========================================================
+
+    elif notes_mode == "Manage Chapters":
+
+        st.subheader("📗 Chapter Management")
+
+        subjects = get_all_subjects()
+
+        if not subjects:
+            st.warning("No subjects available")
+            st.stop()
+
+        subject_map = {
+            s["subject_name"]: s["id"]
+            for s in subjects
+        }
+
+        selected_subject = st.selectbox(
+            "Select Subject",
+            list(subject_map.keys())
+        )
+
+        subject_id = subject_map[selected_subject]
+
+        new_chapter = st.text_input("New Chapter")
+
+        if st.button("Add Chapter"):
+
+            if new_chapter.strip():
+
+                add_chapter(
+                    subject_id,
+                    new_chapter
+                )
+
+                st.success("Chapter Added")
+                st.rerun()
+
+        chapters = get_chapters(subject_id)
+
+        for chap in chapters:
+
+            col1, col2 = st.columns([4,1])
+
+            with col1:
+
+                updated_name = st.text_input(
+                    "Chapter",
+                    value=chap["chapter_name"],
+                    key=f"chap_{chap['id']}"
+                )
+
+                if updated_name != chap["chapter_name"]:
+
+                    update_chapter(
+                        chap["id"],
+                        updated_name
+                    )
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_chap_{chap['id']}"
+                ):
+
+                    delete_chapter(chap["id"])
+                    st.rerun()
+
+    # ========================================================
+    # NOTES MANAGEMENT
+    # ========================================================
+
+    elif notes_mode == "Manage Notes":
+
+        st.subheader("📝 Notes")
+
+        subjects = get_all_subjects()
+
+        if not subjects:
+            st.warning("No subjects found")
+            st.stop()
+
+        subject_map = {
+            s["subject_name"]: s["id"]
+            for s in subjects
+        }
+
+        selected_subject = st.selectbox(
+            "Subject",
+            list(subject_map.keys())
+        )
+
+        subject_id = subject_map[selected_subject]
+
+        chapters = get_chapters(subject_id)
+
+        if not chapters:
+            st.warning("No chapters found")
+            st.stop()
+
+        chapter_map = {
+            c["chapter_name"]: c["id"]
+            for c in chapters
+        }
+
+        selected_chapter = st.selectbox(
+            "Chapter",
+            list(chapter_map.keys())
+        )
+
+        chapter_id = chapter_map[selected_chapter]
+
+        st.markdown("---")
+
+        # ====================================================
+        # ADD NOTE
+        # ====================================================
+
+        note_text = st.text_area("Write Note")
+
+        uploaded_image = st.file_uploader(
+            "Upload Image",
+            type=["png", "jpg", "jpeg"]
+        )
+
+        if st.button("Save Note"):
+
+            image_url = None
+
+            if uploaded_image:
+
+                image_url = upload_note_image(
+                    uploaded_image
+                )
+
+            add_note(
+                chapter_id,
+                note_text,
+                image_url
+            )
+
+            st.success("Note Saved")
+            st.rerun()
+
+        st.markdown("---")
+
+        # ====================================================
+        # VIEW NOTES
+        # ====================================================
+
+        notes = get_notes(chapter_id)
+
+        for note in notes:
+
+            st.markdown("----")
+
+            updated_text = st.text_area(
+                "Edit Note",
+                value=note["note_text"] or "",
+                key=f"note_{note['id']}"
+            )
+
+            if note["image_path"]:
+                st.image(
+                    note["image_path"],
+                    width=400
+                )
+
+            new_image = st.file_uploader(
+                "Replace Image",
+                type=["png","jpg","jpeg"],
+                key=f"img_{note['id']}"
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                if st.button(
+                    "Update",
+                    key=f"upd_{note['id']}"
+                ):
+
+                    image_url = note["image_path"]
+
+                    if new_image:
+
+                        image_url = upload_note_image(
+                            new_image
+                        )
+
+                    update_note(
+                        note["id"],
+                        updated_text,
+                        image_url
+                    )
+
+                    st.success("Updated")
+                    st.rerun()
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_note_{note['id']}"
+                ):
+
+                    delete_note(note["id"])
+
+                    st.success("Deleted")
+                    st.rerun()
