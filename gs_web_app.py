@@ -1,312 +1,172 @@
 import streamlit as st
-import psycopg2
+import sqlite3
 import random
-import hashlib
 import pandas as pd
+import hashlib
+import os
+import time
 from datetime import datetime
+import uuid
 
-# =====================================================
-# SUBJECT LIST
-# =====================================================
+# ============================================================
+# DATABASE CONFIG (Cloud Safe)
+# ============================================================
 
-SUBJECTS = [
-    "Ancient and Medieval History",
-    "Modern History",
-    "Geography",
-    "Polity",
-    "Economics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Environment",
-    "Static Part",
-    "West Bengal"
-]
-
-# =====================================================
-# DATABASE CONNECTION
-# =====================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "wbcsgs.db")
 
 def get_connection():
-    conn = psycopg2.connect(
-        host=st.secrets["DB_HOST"],
-        dbname=st.secrets["DB_NAME"],
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        port=int(st.secrets["DB_PORT"]),
-        sslmode="require"
-    )
-    return conn
+    return sqlite3.connect(DB_FILE, check_same_thread=False)
 
-# =====================================================
+# ============================================================
+# TABLE CREATION
+# ============================================================
+
+def create_tables():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password_hash TEXT,
+            role TEXT
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS quiz (
+            si_no INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT,
+            question TEXT,
+            answer TEXT,
+            difficulty INTEGER,
+            reading_times INTEGER DEFAULT 0,
+            is_marked INTEGER DEFAULT 0
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS practice_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            date TEXT,
+            subject TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+create_tables()
+
+
+# ============================================================
 # SECURITY
-# =====================================================
+# ============================================================
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# =====================================================
-# LOGIN
-# =====================================================
-
 def login_user(username, password):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, password_hash, role FROM users WHERE username=?", (username,))
+    row = cur.fetchone()
+    conn.close()
 
-    st.write("🔎 Login attempt started")
+    if row:
+        user_id, stored_hash, role = row
+        if stored_hash == hash_password(password):
+            return user_id, role
+    return None, None
 
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        st.write("Username entered:", username)
-        st.write("Password entered:", password)
-
-        cur.execute("""
-        SELECT id,password_hash,role
-        FROM users
-        WHERE username=%s
-        """,(username,))
-
-        row = cur.fetchone()
-
-        st.write("Database row fetched:", row)
-
-        if row:
-
-            stored_password = row[1]
-            hashed_input = hash_password(password)
-
-            st.write("Stored password in DB:", stored_password)
-            st.write("Hashed input password:", hashed_input)
-
-            if stored_password == password:
-                st.success("Matched plain password")
-
-            if stored_password == hashed_input:
-                st.success("Matched hashed password")
-
-        else:
-            st.error("No user found in database")
-
-        if row and (row[1] == password or row[1] == hash_password(password)):
-
-            st.success("Password verification passed")
-
-            cur.execute("""
-            UPDATE users
-            SET is_active=TRUE,
-                last_active=%s
-            WHERE id=%s
-            """,(datetime.now(),row[0]))
-
-            conn.commit()
-
-            st.write("User login updated in DB")
-
-            return row[0],row[2]
-
-        st.error("Password verification failed")
-
-    return None,None
-
-# =====================================================
+# ============================================================
 # SESSION INIT
-# =====================================================
+# ============================================================
 
 if "user_id" not in st.session_state:
-    st.session_state.user_id=None
-    st.session_state.role=None
+    st.session_state.user_id = None
+    st.session_state.role = None
 
-# =====================================================
+# ============================================================
 # LOGIN PAGE
-# =====================================================
+# ============================================================
 
 if st.session_state.user_id is None:
 
     st.title("🔐 Login")
 
-    username=st.text_input("Username")
-    password=st.text_input("Password",type="password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-
-        try:
-            conn = get_connection()
-            st.success("Database connected successfully")
-            conn.close()
-        except Exception as e:
-            st.error(f"DB ERROR: {e}")
-
-        user_id,role=login_user(username,password)
-
+        user_id, role = login_user(username, password)
         if user_id:
-            st.session_state.user_id=user_id
-            st.session_state.role=role
+            st.session_state.user_id = user_id
+            st.session_state.role = role
             st.rerun()
-
         else:
             st.error("Invalid credentials")
 
+
     st.stop()
-
-# =====================================================
+# ============================================================
 # SIDEBAR
-# =====================================================
+# ============================================================
 
-st.sidebar.success(f"Logged in as {st.session_state.role}")
+st.sidebar.success(f"Logged in as: {st.session_state.role}")
 
 if st.sidebar.button("Logout"):
-
-    with get_connection() as conn:
-        cur=conn.cursor()
-
-        cur.execute("""
-        UPDATE users
-        SET is_active=FALSE,
-            last_active=%s
-        WHERE id=%s
-        """,(datetime.now(),st.session_state.user_id))
-
-        conn.commit()
-
     st.session_state.clear()
     st.rerun()
 
 mode = st.sidebar.selectbox(
     "Mode",
     [
-        "Live Dashboard",
+        "Notes",
         "Subject Practice",
         "Mixed Practice",
-        "Bulk View",
         "Exam Mode",
-        "Update Question",
-        "Insert Question",
-        "Import from TXT",
         "Marked Questions",
         "Analytics",
+        "Live Dashboard",
         "User Management"
     ]
 )
 
-# =====================================================
-# FETCH QUESTIONS
-# =====================================================
+# ============================================================
+# COMMON FUNCTIONS
+# ============================================================
 
-def get_questions(subject=None,difficulty=None,order="random"):
-
-    with get_connection() as conn:
-        cur=conn.cursor()
-
-        query="""
-        SELECT si_no,subject,question,answer,difficulty,
-        COALESCE(reading_times,0),COALESCE(is_marked,0)
+def get_questions():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT si_no, subject, question, answer, difficulty,
+               COALESCE(reading_times,0), COALESCE(is_marked,0)
         FROM quiz
-        """
-
-        conditions=[]
-        params=[]
-
-        if subject:
-            conditions.append("subject=%s")
-            params.append(subject)
-
-        if difficulty:
-            conditions.append("difficulty=%s")
-            params.append(difficulty)
-
-        if conditions:
-            query+=" WHERE "+" AND ".join(conditions)
-
-        if order=="most":
-            query+=" ORDER BY reading_times DESC"
-
-        if order=="least":
-            query+=" ORDER BY reading_times ASC"
-
-        cur.execute(query,params)
-        rows=cur.fetchall()
-
-    if order=="random":
-        random.shuffle(rows)
-
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    random.shuffle(rows)
     return rows
 
-# =====================================================
-# UPDATE READ COUNT
-# =====================================================
-
 def update_read_count(si_no, subject):
-
     today = datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    with get_connection() as conn:
-        cur = conn.cursor()
+    cur.execute("UPDATE quiz SET reading_times = reading_times + 1 WHERE si_no=?", (si_no,))
+    cur.execute(
+        "INSERT INTO practice_log (user_id, date, subject) VALUES (?, ?, ?)",
+        (st.session_state.user_id, today, subject)
+    )
 
-        # Update question read counter
-        cur.execute(
-            """
-            UPDATE quiz
-            SET reading_times = reading_times + 1
-            WHERE si_no = %s
-            """,
-            (si_no,)
-        )
+    conn.commit()
+    conn.close()
 
-        # Log every practice event
-        cur.execute(
-            """
-            INSERT INTO practice_log(user_id,date,subject,question_id)
-            VALUES(%s,%s,%s,%s)
-            """,
-            (
-                st.session_state.user_id,
-                today,
-                subject,
-                si_no
-            )
-        )
-                
-        conn.commit()
-
-def update_bulk_read_count(question_list):
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    ids = [q[0] for q in question_list]
-
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        # Bulk update
-        cur.execute(
-            """
-            UPDATE quiz
-            SET reading_times = reading_times + 1
-            WHERE si_no = ANY(%s)
-            """,
-            (ids,)
-        )
-
-        # Bulk insert logs
-        log_data = [
-            (
-                st.session_state.user_id,
-                today,
-                q[1],
-                q[0]
-            )
-            for q in question_list
-        ]
-
-        cur.executemany(
-            """
-            INSERT INTO practice_log(user_id,date,subject,question_id)
-            VALUES(%s,%s,%s,%s)
-            """,
-            log_data
-        )
-
-        conn.commit()
-        
 def toggle_mark(si_no, current_status):
     conn = get_connection()
     cur = conn.cursor()
@@ -314,448 +174,297 @@ def toggle_mark(si_no, current_status):
     cur.execute("UPDATE quiz SET is_marked=? WHERE si_no=?", (new_status, si_no))
     conn.commit()
     conn.close()
-
-
 # ============================================================
-# PRACTICE MODE (Subject + Mixed Unified Engine)
+# NOTES FUNCTION COMMON THINGS
+# ============================================================
+def add_subject(subject_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_subjects(subject_name)
+        VALUES(%s)
+        """,
+        (subject_name,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_all_subjects():
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, subject_name
+        FROM notes_subjects
+        ORDER BY subject_name
+    """)
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_subject(subject_id, updated_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_subjects
+        SET subject_name=%s
+        WHERE id=%s
+        """,
+        (updated_name, subject_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_subject(subject_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_subjects
+        WHERE id=%s
+        """,
+        (subject_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def add_chapter(subject_id, chapter_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_chapters(subject_id, chapter_name)
+        VALUES(%s, %s)
+        """,
+        (subject_id, chapter_name)
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_chapters(subject_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, subject_id, chapter_name
+        FROM notes_chapters
+        WHERE subject_id=%s
+        ORDER BY chapter_name
+        """,
+        (subject_id,)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_chapter(chapter_id, updated_name):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_chapters
+        SET chapter_name=%s
+        WHERE id=%s
+        """,
+        (updated_name, chapter_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_chapter(chapter_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_chapters
+        WHERE id=%s
+        """,
+        (chapter_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def add_note(chapter_id, note_text, image_url):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO notes_content(
+            chapter_id,
+            note_text,
+            image_path
+        )
+        VALUES(%s, %s, %s)
+        """,
+        (
+            chapter_id,
+            note_text,
+            image_url
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+def get_notes(chapter_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            id,
+            chapter_id,
+            note_text,
+            image_path,
+            created_at
+        FROM notes_content
+        WHERE chapter_id=%s
+        ORDER BY created_at
+        """,
+        (chapter_id,)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
+def update_note(note_id, note_text, image_url):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE notes_content
+        SET
+            note_text=%s,
+            image_path=%s
+        WHERE id=%s
+        """,
+        (
+            note_text,
+            image_url,
+            note_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+def delete_note(note_id):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM notes_content
+        WHERE id=%s
+        """,
+        (note_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+def upload_note_image(uploaded_file):
+
+    ext = uploaded_file.name.split(".")[-1]
+
+    filename = f"{uuid.uuid4()}.{ext}"
+
+    filepath = f"notes/{filename}"
+
+    supabase.storage.from_("notes-images").upload(
+        filepath,
+        uploaded_file.getvalue()
+    )
+
+    public_url = supabase.storage.from_(
+        "notes-images"
+    ).get_public_url(filepath)
+
+    return public_url
+# ============================================================
+# PRACTICE MODE
 # ============================================================
 
 if mode in ["Subject Practice", "Mixed Practice"]:
 
-    # ---------------- SESSION STATE INIT ----------------
-
-    defaults = {
-        "session_easy": 0,
-        "session_moderate": 0,
-        "session_difficult": 0,
-        "show_summary": False,
-        "practice_active": False,
-        "reviewed": 0,
-        "answer_shown": False
-    }
-
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-    subject = None
-    difficulty = None
-    order_type = "random"
-
-    # ========================================================
-    # SUBJECT FILTER (Only in Subject Practice)
-    # ========================================================
-
-    if mode == "Subject Practice":
-
-        with get_connection() as conn:
-            cur = conn.cursor()
-
-            cur.execute("""
-                SELECT subject, COUNT(*)
-                FROM quiz
-                GROUP BY subject
-                ORDER BY subject
-            """)
-
-            rows = cur.fetchall()
-
-        subject_counts = {r[0]: r[1] for r in rows}
-
-        if not subject_counts:
-            st.warning("No questions available in database.")
-            st.stop()
-
-        subject_options = [
-            f"{sub} ({count})"
-            for sub, count in subject_counts.items()
-        ]
-
-        selected_display = st.selectbox(
-            "Select Subject",
-            subject_options
-        )
-
-        subject = selected_display.rsplit(" (", 1)[0]
-
-    # ========================================================
-    # DIFFICULTY FILTER
-    # ========================================================
-
-    difficulty_option = st.selectbox(
-        "Difficulty",
-        ["All", "Easy", "Moderate", "Difficult"]
-    )
-
-    difficulty_map = {
-        "Easy": 1,
-        "Moderate": 2,
-        "Difficult": 3
-    }
-
-    if difficulty_option != "All":
-        difficulty = difficulty_map[difficulty_option]
-
-    # ========================================================
-    # QUESTION TYPE
-    # ========================================================
-
-    order_option = st.selectbox(
-        "Question Type",
-        ["Random", "Most Read", "Least Read"]
-    )
-
-    order_map = {
-        "Random": "random",
-        "Most Read": "most",
-        "Least Read": "least"
-    }
-
-    order_type = order_map[order_option]
-
-    # ========================================================
-    # START PRACTICE
-    # ========================================================
-
-    if not st.session_state.practice_active:
-
-        if st.button("▶ Start Practice"):
-
-            questions = get_questions(
-                subject=subject,
-                difficulty=difficulty,
-                order=order_type
-            )
-
-            if not questions:
-                st.warning("No questions found with selected filters.")
-                st.stop()
-
-            st.session_state.questions = questions
-            st.session_state.index = 0
-            st.session_state.reviewed = 0
-            st.session_state.practice_active = True
-
-            st.rerun()
-
-        st.stop()
-
-    # ========================================================
-    # ACTIVE SESSION
-    # ========================================================
+    if "questions" not in st.session_state:
+        st.session_state.questions = get_questions()
+        st.session_state.index = 0
+        st.session_state.reviewed = 0
 
     questions = st.session_state.questions
 
     if st.session_state.index >= len(questions):
         st.success("Session Complete")
-        st.session_state.practice_active = False
-        st.session_state.show_summary = True
-        st.rerun()
+        st.stop()
 
     q = questions[st.session_state.index]
-
     si_no, subject, question, answer, diff, reads, marked = q
 
     st.info(f"Reviewed This Session: {st.session_state.reviewed}")
-
     st.write(f"**Question ID:** {si_no}")
     st.write(f"**Subject:** {subject}")
-    st.write(f"**Reads:** {reads}")
-
     st.write(question)
-    
-    colA, colB = st.columns(2)
-
-    with colA:
-        if st.button("⭐ Mark / Unmark"):
-            toggle_mark(si_no, marked)
-            st.success("Updated")
-
-    with colB:
-        new_subject = st.selectbox(
-            "Change Subject",
-            SUBJECTS,
-            key=f"subject_change_{si_no}"
-        )
-
-    if st.button("Update Subject"):
-        with get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE quiz SET subject=%s WHERE si_no=%s",
-                (new_subject, si_no)
-            )
-            conn.commit()
-        st.success("Subject updated")
-
-    # -------------------------------------------------------
-
-    if st.button("Show Answer"):
-
-        st.success(answer)
-
-        update_read_count(si_no, subject)
-
-        st.session_state.reviewed += 1
-        st.session_state.answer_shown = True
-
-        if diff == 1:
-            st.session_state.session_easy += 1
-        elif diff == 2:
-            st.session_state.session_moderate += 1
-        elif diff == 3:
-            st.session_state.session_difficult += 1
-
-    # -------------------------------------------------------
 
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("Next"):
-            st.session_state.index += 1
-            st.session_state.answer_shown = False
-            st.rerun()
-
-    with col2:
-        if st.button("⏹ End Practice"):
-            st.session_state.practice_active = False
-            st.session_state.show_summary = True
-            st.rerun()
-
-
-# ============================================================
-# PRACTICE SUMMARY (FIXED & SAFE)
-# ============================================================
-
-if st.session_state.get("show_summary", False):
-
-    st.markdown("## 📊 Practice Session Summary")
-
-    # ✅ Total reviewed (safe)
-    total_reviewed = len(st.session_state.get("reviewed", []))
-
-    st.metric("Total Questions Reviewed", total_reviewed)
-
-    # ✅ Difficulty metrics (safe access)
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Easy", st.session_state.get("session_easy", 0))
-    col2.metric("Moderate", st.session_state.get("session_moderate", 0))
-    col3.metric("Difficult", st.session_state.get("session_difficult", 0))
-
-    # ============================================================
-    # 🔹 SUBJECT-WISE BREAKDOWN (OPTIONAL BUT USEFUL)
-    # ============================================================
-    practice_log = st.session_state.get("practice_log", [])
-
-    if practice_log:
-        st.markdown("### 📘 Subject-wise Distribution")
-
-        subject_count = {}
-        for _, sub in practice_log:
-            subject_count[sub] = subject_count.get(sub, 0) + 1
-
-        for sub, count in subject_count.items():
-            st.write(f"- {sub}: {count}")
-
-    # ============================================================
-    # 🔹 RESET SESSION (FIXED LOGIC)
-    # ============================================================
-    if st.button("🔄 Start New Session"):
-
-        reset_defaults = {
-            "bulk_started": False,
-            "bulk_subject": "All",
-            "bulk_q_count": 30,
-            "bulk_index": 0,
-            "practice_log": [],
-            "reviewed": [],
-            "show_summary": False,
-            "session_easy": 0,
-            "session_moderate": 0,
-            "session_difficult": 0,
-        }
-
-        for key, value in reset_defaults.items():
-            st.session_state[key] = value
-
-        # 🔹 remove page tracking keys
-        for key in list(st.session_state.keys()):
-            if key.startswith("bulk_updated_"):
-                del st.session_state[key]
-
-        st.rerun()
-# =====================================================
-# LIVE DASHBOARD
-# =====================================================
-
-elif mode == "Live Dashboard":
-
-    st.subheader("📊 User Dashboard")
-
-    user_id = st.session_state.user_id
-    role = st.session_state.role
-
-    # ====================================================
-    # 1️⃣ TOTAL QUESTIONS (GLOBAL)
-    # ====================================================
-
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        cur.execute("SELECT COUNT(*) FROM quiz")
-        total_questions = cur.fetchone()[0] or 0
-
-        cur.execute("""
-        SELECT subject, COUNT(*)
-        FROM quiz
-        GROUP BY subject
-        ORDER BY CASE subject
-            WHEN 'Ancient and Medieval History' THEN 1
-            WHEN 'Modern History' THEN 2
-            WHEN 'Geography' THEN 3
-            WHEN 'Polity' THEN 4
-            WHEN 'Economics' THEN 5
-            WHEN 'Environment' THEN 6
-            WHEN 'Physics' THEN 7
-            WHEN 'Chemistry' THEN 8
-            WHEN 'Biology' THEN 9
-            WHEN 'Static Part' THEN 10
-            WHEN 'West Bengal' THEN 11
-            ELSE 12
-        END
-    """)
-
-        subject_question_counts = cur.fetchall()
-
-    st.markdown("## 📘 Question Bank Overview")
-    st.metric("Total Questions", total_questions)
-
-    for subject, count in subject_question_counts:
-        st.write(f"{subject} : {count}")
-
-    st.markdown("---")
-
-    # ====================================================
-    # 2️⃣ USER TOTAL READ COUNT
-    # ====================================================
-
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM practice_log
-            WHERE user_id = %s
-        """, (user_id,))
-
-        user_total_reads = cur.fetchone()[0] or 0
-
-    st.markdown("## 📈 Your Practice Stats")
-
-    col1, col2 = st.columns([3,1])
-
-    with col1:
-        st.metric("Total Questions Practiced", user_total_reads)
-
-    with col2:
-        if st.button("Reset Total Reads"):
-
-            with get_connection() as conn:
-                cur = conn.cursor()
-
-                cur.execute("""
-                    DELETE FROM practice_log
-                    WHERE user_id = %s
-                """, (user_id,))
-
-                conn.commit()
-
-            st.success("Your total practice data has been reset.")
-            st.rerun()
-
-    # ====================================================
-    # 3️⃣ SUBJECT-WISE USER READ COUNT
-    # ====================================================
-
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        cur.execute("""
-            SELECT subject, COUNT(*)
-            FROM practice_log
-            WHERE user_id = %s
-            GROUP BY subject
-            ORDER BY COUNT(*) DESC
-        """, (user_id,))
-
-        subject_reads = cur.fetchall()
-
-    if subject_reads:
-
-        st.markdown("### 📊 Subject-wise Practice")
-
-        for subject, count in subject_reads:
-
-            col1, col2 = st.columns([3,1])
-
-            with col1:
-                st.write(f"{subject} : {count}")
-
-            with col2:
-                if st.button(f"Reset {subject}", key=f"reset_{subject}"):
-
-                    with get_connection() as conn:
-                        cur = conn.cursor()
-
-                        cur.execute("""
-                            DELETE FROM practice_log
-                            WHERE user_id = %s
-                            AND subject = %s
-                        """, (user_id, subject))
-
-                        conn.commit()
-
-                    st.success(f"{subject} data reset.")
-                    st.rerun()
-
-    else:
-        st.info("No practice data yet.")
-
-    st.markdown("---")
-
-    if role == "admin":
-
-        st.markdown("## 👑 Admin: All Users Practice Stats")
-
-        with get_connection() as conn:
-            cur = conn.cursor()
-
-            cur.execute("""
-                SELECT u.username, COUNT(p.question_id)
-                FROM users u
-                LEFT JOIN practice_log p
-                ON u.id = p.user_id
-                GROUP BY u.username
-                ORDER BY COUNT(p.question_id) DESC
-            """)
-
-            user_stats = cur.fetchall()
-
-        if user_stats:
-
-            for username, total in user_stats:
-
-                col1, col2 = st.columns([3,1])
-
-                with col1:
-                    st.write(f"{username}")
-
-                with col2:
-                    st.metric("Total Practiced", total)
-
+        if marked:
+            if st.button("❌ Unmark"):
+                toggle_mark(si_no, marked)
+                st.rerun()
         else:
-            st.info("No user practice data yet.")
+            if st.button("⭐ Mark"):
+                toggle_mark(si_no, marked)
+                st.rerun()
+
+    if st.button("Show Answer"):
+        st.success(answer)
+        update_read_count(si_no, subject)
+        st.session_state.reviewed += 1
+
+    if st.button("Next"):
+        st.session_state.index += 1
+        st.rerun()
 
 # ============================================================
 # MARKED QUESTIONS
@@ -763,17 +472,16 @@ elif mode == "Live Dashboard":
 
 elif mode == "Marked Questions":
 
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        cur.execute("""
-            SELECT si_no, subject, question, answer, difficulty,
-                   COALESCE(reading_times,0), COALESCE(is_marked,0)
-            FROM quiz
-            WHERE is_marked = 1
-        """)
-
-        rows = cur.fetchall()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT si_no, subject, question, answer, difficulty,
+               COALESCE(reading_times,0), COALESCE(is_marked,0)
+        FROM quiz
+        WHERE is_marked = 1
+    """)
+    rows = cur.fetchall()
+    conn.close()
 
     if not rows:
         st.warning("No marked questions.")
@@ -799,7 +507,6 @@ elif mode == "Marked Questions":
         st.session_state.marked_index += 1
         st.rerun()
 
-
 # ============================================================
 # EXAM MODE
 # ============================================================
@@ -809,12 +516,10 @@ elif mode == "Exam Mode":
     duration = st.number_input("Duration (minutes)", 1, 180, 30)
 
     if st.button("Start Exam"):
-
         st.session_state.exam = get_questions()
         st.session_state.exam_index = 0
         st.session_state.start_time = datetime.now()
         st.session_state.duration = duration
-
         st.rerun()
 
     if "exam" in st.session_state:
@@ -828,11 +533,9 @@ elif mode == "Exam Mode":
 
         minutes = int(remaining // 60)
         seconds = int(remaining % 60)
-
         st.markdown(f"## ⏳ {minutes:02d}:{seconds:02d}")
 
         q = st.session_state.exam[st.session_state.exam_index]
-
         st.write(q[2])
 
         if st.button("Next Question"):
@@ -842,49 +545,108 @@ elif mode == "Exam Mode":
         time.sleep(1)
         st.rerun()
 
-
 # ============================================================
 # ANALYTICS (PER USER)
 # ============================================================
 
 elif mode == "Analytics":
 
-    with get_connection() as conn:
-        cur = conn.cursor()
+    conn = get_connection()
+    cur = conn.cursor()
 
-        cur.execute("""
-            SELECT date, COUNT(*)
-            FROM practice_log
-            WHERE user_id = %s
-            GROUP BY date
-            ORDER BY date
-        """, (st.session_state.user_id,))
+    cur.execute("""
+        SELECT date, COUNT(*)
+        FROM practice_log
+        WHERE user_id = ?
+        GROUP BY date
+        ORDER BY date
+    """, (st.session_state.user_id,))
 
-        rows = cur.fetchall()
+    rows = cur.fetchall()
+    conn.close()
 
     if rows:
-
         dates = [r[0] for r in rows]
         counts = [r[1] for r in rows]
 
         formatted_dates = [
-            d.strftime("%d %b") if hasattr(d, "strftime") else str(d)
+            datetime.strptime(d, "%Y-%m-%d").strftime("%d %b")
             for d in dates
         ]
 
-        df = pd.DataFrame(
-            {"Questions Practiced": counts},
-            index=formatted_dates
-        )
-
-        st.line_chart(df)
-
+        df = pd.DataFrame({"Questions Practiced": counts}, index=formatted_dates)
+        st.bar_chart(df)
     else:
         st.info("No data yet")
 
-# =====================================================
-# USER MANAGEMENT
-# =====================================================
+# ============================================================
+# LIVE DASHBOARD
+# ============================================================
+
+elif mode == "Live Dashboard":
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM quiz")
+    total_questions = cur.fetchone()[0]
+
+    cur.execute("SELECT SUM(reading_times) FROM quiz")
+    total_reads = cur.fetchone()[0] or 0
+
+    cur.execute("SELECT subject, COUNT(*) FROM quiz GROUP BY subject")
+    subject_counts = cur.fetchall()
+
+    cur.execute("""
+        SELECT subject, SUM(reading_times)
+        FROM quiz
+        GROUP BY subject
+        ORDER BY SUM(reading_times) DESC
+    """)
+    subject_leaderboard = cur.fetchall()
+
+    conn.close()
+
+    col1, col2 = st.columns(2)
+    col1.metric("Total Questions", total_questions)
+    col2.metric("Total Reads", total_reads)
+
+    st.subheader("Subject Distribution")
+    for s in subject_counts:
+        st.write(f"{s[0]} : {s[1]}")
+
+    st.subheader("Most Practiced Subjects")
+    for s in subject_leaderboard:
+        st.write(f"{s[0]} : {s[1]} reads")
+
+    # ========================================================
+    # USER LEADERBOARD (ADMIN ONLY)
+    # ========================================================
+
+    if st.session_state.role == "admin":
+
+        st.subheader("👥 User Leaderboard")
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT u.username, COUNT(p.id)
+            FROM users u
+            LEFT JOIN practice_log p ON u.id = p.user_id
+            GROUP BY u.username
+            ORDER BY COUNT(p.id) DESC
+        """)
+
+        user_rows = cur.fetchall()
+        conn.close()
+
+        for i, (username, count) in enumerate(user_rows, 1):
+            st.write(f"{i}. {username} — {count} practices")
+
+# ============================================================
+# USER MANAGEMENT (ADMIN ONLY)
+# ============================================================
 
 elif mode == "User Management":
 
@@ -892,593 +654,304 @@ elif mode == "User Management":
         st.error("Admin access required")
         st.stop()
 
-    st.subheader("👥 User Management Panel")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    # ========================================================
-    # 1️⃣ LIST USERS
-    # ========================================================
+    st.subheader("Create User")
 
-    with get_connection() as conn:
-        cur = conn.cursor()
-
-        cur.execute("""
-            SELECT id, username, role, is_active, last_active
-            FROM users
-            ORDER BY username
-        """)
-        users = cur.fetchall()
-
-    st.markdown("### 📋 All Users")
-
-    for user_id, username, role, is_active, last_active in users:
-
-        col1, col2, col3, col4, col5 = st.columns([2,1,1,2,2])
-
-        with col1:
-            st.write(username)
-
-        with col2:
-            st.write(role)
-
-        with col3:
-            if is_active:
-                st.success("Active")
-            else:
-                st.error("Inactive")
-
-        with col4:
-            st.write(last_active if last_active else "Never")
-
-        with col5:
-            if st.button("Delete", key=f"delete_{user_id}"):
-
-                with get_connection() as conn:
-                    cur = conn.cursor()
-
-                    cur.execute(
-                        "DELETE FROM users WHERE id = %s",
-                        (user_id,)
-                    )
-
-                    cur.execute(
-                        "DELETE FROM practice_log WHERE user_id = %s",
-                        (user_id,)
-                    )
-
-                    conn.commit()
-
-                st.success("User deleted")
-                st.rerun()
-
-    st.markdown("---")
-
-    # ========================================================
-    # 2️⃣ CREATE USER
-    # ========================================================
-
-    st.markdown("### ➕ Create New User")
-
-    new_username = st.text_input("Username")
-    new_password = st.text_input("Password", type="password")
-    new_role = st.selectbox("Role", ["student", "admin"])
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    role = st.selectbox("Role", ["student", "admin"])
 
     if st.button("Create User"):
+        cur.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            (username, hash_password(password), role)
+        )
+        conn.commit()
+        st.success("User created")
 
-        try:
-            with get_connection() as conn:
-                cur = conn.cursor()
+    conn.close()
 
-                cur.execute("""
-                    INSERT INTO users (username, password_hash, role)
-                    VALUES (%s, %s, %s)
-                """, (
-                    new_username,
-                    hash_password(new_password),
-                    new_role
-                ))
+# ============================================================
+# NOTES MODE
+# ============================================================
 
-                conn.commit()
+elif mode == "Notes":
 
-            st.success("User created successfully")
-            st.rerun()
+    st.title("📚 Notes Management")
 
-        except Exception as e:
-            st.error("Username already exists")
-
-    st.markdown("---")
-
-    # ========================================================
-    # 3️⃣ MODIFY USER
-    # ========================================================
-
-    st.markdown("### ✏ Modify User")
-
-    usernames = [u[1] for u in users]
-
-    selected_user = st.selectbox("Select User", usernames)
-
-    new_password = st.text_input(
-        "New Password (leave blank to keep same)",
-        type="password"
+    notes_mode = st.sidebar.radio(
+        "Notes Menu",
+        [
+            "View Notes",
+            "Manage Subjects",
+            "Manage Chapters",
+            "Manage Notes"
+        ]
     )
 
-    new_role = st.selectbox("New Role", ["student", "admin"])
+    # ========================================================
+    # SUBJECT MANAGEMENT
+    # ========================================================
 
-    if st.button("Update User"):
+    if notes_mode == "Manage Subjects":
 
-        with get_connection() as conn:
-            cur = conn.cursor()
+        st.subheader("📘 Subject Management")
 
-            if new_password:
+        new_subject = st.text_input("New Subject")
 
-                cur.execute("""
-                    UPDATE users
-                    SET password_hash = %s,
-                        role = %s
-                    WHERE username = %s
-                """, (
-                    hash_password(new_password),
-                    new_role,
-                    selected_user
-                ))
+        if st.button("Add Subject"):
 
-            else:
+            if new_subject.strip():
 
-                cur.execute("""
-                    UPDATE users
-                    SET role = %s
-                    WHERE username = %s
-                """, (
-                    new_role,
-                    selected_user
-                ))
+                add_subject(new_subject)
 
-            conn.commit()
-
-        st.success("User updated successfully")
-        st.rerun()
-
-# ========================================================
-# INSERT QUESTION
-# ========================================================
-
-elif mode == "Insert Question":
-
-    st.subheader("➕ Insert New Question")
-
-    if "insert_question" not in st.session_state:
-        st.session_state.insert_question = ""
-
-    if "insert_answer" not in st.session_state:
-        st.session_state.insert_answer = ""
-
-    question = st.text_area("Enter Question", key="insert_question")
-    answer = st.text_area("Enter Answer", key="insert_answer")
-
-    subject = st.selectbox("Select Subject", SUBJECTS)
-
-    difficulty_label = st.selectbox(
-        "Difficulty",
-        ["Easy", "Moderate", "Difficult"]
-    )
-
-    difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
-    difficulty = difficulty_map[difficulty_label]
-
-    col1,col2 = st.columns(2)
-
-    with col1:
-
-        if st.button("💾 Save Question"):
-
-            if not question.strip() or not answer.strip():
-                st.error("Question and Answer cannot be empty.")
-
-            else:
-
-                with get_connection() as conn:
-                    cur = conn.cursor()
-
-                    cur.execute("""
-                        INSERT INTO quiz (subject,question,answer,difficulty)
-                        VALUES (%s,%s,%s,%s)
-                        RETURNING si_no
-                    """,(
-                        subject,
-                        question.strip(),
-                        answer.strip(),
-                        difficulty
-                    ))
-
-                    inserted_id = cur.fetchone()[0]
-
-                    conn.commit()
-
-                st.success(f"Question added successfully! 🆔 ID: {inserted_id}")
-                st.info(f"New Question ID: {inserted_id}")
-
-                st.session_state.pop("insert_question",None)
-                st.session_state.pop("insert_answer",None)
+                st.success("Subject Added")
                 st.rerun()
 
-    with col2:
+        subjects = get_all_subjects()
 
-        if st.button("🔄 Reset Fields"):
+        for sub in subjects:
 
-            st.session_state.pop("insert_question",None)
-            st.session_state.pop("insert_answer",None)
-            st.rerun()
+            col1, col2 = st.columns([4,1])
 
+            with col1:
 
-# ========================================================
-# IMPORT FROM TXT
-# ========================================================
+                updated_name = st.text_input(
+                    "Subject",
+                    value=sub["subject_name"],
+                    key=f"sub_{sub['id']}"
+                )
 
-elif mode == "Import from TXT":
+                if updated_name != sub["subject_name"]:
 
-    st.subheader("📂 Import Questions from TXT")
+                    update_subject(
+                        sub["id"],
+                        updated_name
+                    )
 
-    uploaded_file = st.file_uploader("Upload TXT File",type=["txt"])
+            with col2:
 
-    difficulty_label = st.selectbox(
-        "Difficulty",
-        ["Easy","Moderate","Difficult"]
-    )
+                if st.button(
+                    "Delete",
+                    key=f"del_sub_{sub['id']}"
+                ):
 
-    difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
-    difficulty = difficulty_map[difficulty_label]
+                    delete_subject(sub["id"])
+                    st.rerun()
 
-    if uploaded_file is not None:
+    # ========================================================
+    # CHAPTER MANAGEMENT
+    # ========================================================
 
-        file_content = uploaded_file.read().decode("utf-8")
-        lines = [l.strip() for l in file_content.split("\n") if l.strip()]
+    elif notes_mode == "Manage Chapters":
 
-        inserted = 0
-        current_subject = "General"
+        st.subheader("📗 Chapter Management")
 
-        if st.button("Import Now"):
+        subjects = get_all_subjects()
 
-            with get_connection() as conn:
-                cur = conn.cursor()
+        if not subjects:
+            st.warning("No subjects available")
+            st.stop()
 
-                for line in lines:
+        subject_map = {
+            s["subject_name"]: s["id"]
+            for s in subjects
+        }
 
-                    if line.startswith("* "):
-                        current_subject = line[2:].strip()
-                        continue
+        selected_subject = st.selectbox(
+            "Select Subject",
+            list(subject_map.keys())
+        )
 
-                    if "-->" in line:
-                        question,answer = line.split("-->",1)
-                        question = question.strip()
-                        answer = answer.strip()
-                    else:
-                        continue
+        subject_id = subject_map[selected_subject]
 
-                    if question and answer:
+        new_chapter = st.text_input("New Chapter")
 
-                        cur.execute("""
-                            INSERT INTO quiz (subject,question,answer,difficulty)
-                            VALUES (%s,%s,%s,%s)
-                        """,(
-                            current_subject,
-                            question,
-                            answer,
-                            difficulty
-                        ))
+        if st.button("Add Chapter"):
 
-                        inserted += 1
+            if new_chapter.strip():
 
-                conn.commit()
+                add_chapter(
+                    subject_id,
+                    new_chapter
+                )
 
-            st.success(f"{inserted} questions imported successfully.")
-            st.rerun()
+                st.success("Chapter Added")
+                st.rerun()
 
+        chapters = get_chapters(subject_id)
 
-# ========================================================
-# UPDATE / DELETE QUESTION
-# ========================================================
+        for chap in chapters:
 
-elif mode == "Update Question":
+            col1, col2 = st.columns([4,1])
 
-    st.subheader("✏ Update / Delete Question")
+            with col1:
 
-    qid = st.number_input("Enter Question ID",min_value=1,step=1)
+                updated_name = st.text_input(
+                    "Chapter",
+                    value=chap["chapter_name"],
+                    key=f"chap_{chap['id']}"
+                )
 
-    if st.button("Load Question"):
+                if updated_name != chap["chapter_name"]:
 
-        with get_connection() as conn:
-            cur = conn.cursor()
+                    update_chapter(
+                        chap["id"],
+                        updated_name
+                    )
 
-            cur.execute("""
-                SELECT subject,question,answer,difficulty
-                FROM quiz
-                WHERE si_no = %s
-            """,(qid,))
+            with col2:
 
-            row = cur.fetchone()
+                if st.button(
+                    "Delete",
+                    key=f"del_chap_{chap['id']}"
+                ):
 
-        if row:
+                    delete_chapter(chap["id"])
+                    st.rerun()
 
-            st.session_state.edit_data = {
-                "id":qid,
-                "subject":row[0],
-                "question":row[1],
-                "answer":row[2],
-                "difficulty":row[3]
-            }
+    # ========================================================
+    # NOTES MANAGEMENT
+    # ========================================================
 
-        else:
-            st.error("Question not found.")
+    elif notes_mode == "Manage Notes":
 
-    if "edit_data" in st.session_state:
+        st.subheader("📝 Notes")
 
-        data = st.session_state.edit_data
+        subjects = get_all_subjects()
 
-        new_question = st.text_area("Question",value=data["question"])
-        new_answer = st.text_area("Answer",value=data["answer"])
+        if not subjects:
+            st.warning("No subjects found")
+            st.stop()
 
-        new_subject = st.selectbox(
+        subject_map = {
+            s["subject_name"]: s["id"]
+            for s in subjects
+        }
+
+        selected_subject = st.selectbox(
             "Subject",
-            SUBJECTS,
-            index=SUBJECTS.index(data["subject"])
+            list(subject_map.keys())
         )
 
-        difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
-        reverse_map = {1:"Easy",2:"Moderate",3:"Difficult"}
+        subject_id = subject_map[selected_subject]
 
-        difficulty_label = st.selectbox(
-            "Difficulty",
-            ["Easy","Moderate","Difficult"],
-            index=["Easy","Moderate","Difficult"].index(
-                reverse_map[data["difficulty"]]
-            )
+        chapters = get_chapters(subject_id)
+
+        if not chapters:
+            st.warning("No chapters found")
+            st.stop()
+
+        chapter_map = {
+            c["chapter_name"]: c["id"]
+            for c in chapters
+        }
+
+        selected_chapter = st.selectbox(
+            "Chapter",
+            list(chapter_map.keys())
         )
 
-        col1,col2 = st.columns(2)
-
-        with col1:
-
-            if st.button("Save Changes"):
-
-                if not new_question.strip() and not new_answer.strip():
-
-                    with get_connection() as conn:
-                        cur = conn.cursor()
-
-                        cur.execute(
-                            "DELETE FROM quiz WHERE si_no = %s",
-                            (data["id"],)
-                        )
-
-                        conn.commit()
-
-                    st.success("Question deleted successfully.")
-                    st.session_state.pop("edit_data",None)
-                    st.rerun()
-
-                else:
-
-                    with get_connection() as conn:
-                        cur = conn.cursor()
-
-                        cur.execute("""
-                            UPDATE quiz
-                            SET subject=%s,
-                                question=%s,
-                                answer=%s,
-                                difficulty=%s
-                            WHERE si_no=%s
-                        """,(
-                            new_subject,
-                            new_question.strip(),
-                            new_answer.strip(),
-                            difficulty_map[difficulty_label],
-                            data["id"]
-                        ))
-
-                        conn.commit()
-
-                    st.success("Question updated successfully.")
-                    st.session_state.pop("edit_data",None)
-                    st.rerun()
-
-        with col2:
-
-            if st.button("Cancel"):
-                st.session_state.pop("edit_data",None)
-                st.rerun()
-
-# ========================================================
-#  BULK VIEW (SESSION BASED - CLEAN VERSION)
-# ========================================================
-
-elif mode == "Bulk View":
-
-    # ====================================================
-    # 🔹 SESSION STATE INITIALIZATION
-    # ====================================================
-    defaults = {
-        "bulk_started": False,
-        "bulk_subject": "All",
-        "bulk_q_count": 30,
-        "bulk_index": 0,
-        "practice_log": [],
-        "reviewed": [],
-        "show_summary": False,
-    }
-
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-    st.subheader("📚 Bulk Practice Mode")
-
-    # ====================================================
-    # 🔹 STEP 1: INPUT PANEL (FIXED)
-    # ====================================================
-    if not st.session_state.bulk_started:
-
-        q_count = st.number_input(
-            "Enter number of questions per set",
-            min_value=1,
-            max_value=100,
-            value=30
-        )
-
-        subject = st.selectbox(
-            "Select Subject (Optional)",
-            ["All"] + SUBJECTS
-        )
-
-        if st.button("Start Practice"):
-            st.session_state.bulk_started = True
-            st.session_state.bulk_q_count = q_count
-            st.session_state.bulk_subject = subject
-            st.session_state.bulk_index = 0
-            st.session_state.practice_log = []
-            st.session_state.reviewed = []
-            st.session_state.show_summary = False
-
-            # 🔹 Clear old page keys
-            for key in list(st.session_state.keys()):
-                if key.startswith("bulk_updated_"):
-                    del st.session_state[key]
-
-            st.rerun()
-
-        st.stop()
-
-    # ====================================================
-    # 🔹 STEP 2: LOAD QUESTIONS
-    # ====================================================
-    subject = st.session_state.bulk_subject
-
-    questions = get_questions(
-        subject=None if subject == "All" else subject
-    )
-
-    if not questions:
-        st.warning("No questions found")
-        st.stop()
-
-    q_count = st.session_state.bulk_q_count
-    start = st.session_state.bulk_index
-    end = start + q_count
-
-    chunk = questions[start:end]
-
-    if not chunk:
-        st.info("No more questions available.")
-        st.session_state.show_summary = True
-
-    # ====================================================
-    # 🔹 STEP 3: TRACK PRACTICE (SAFE)
-    # ====================================================
-    page_key = f"bulk_updated_{start}"
-
-    if page_key not in st.session_state:
-
-        update_bulk_read_count(chunk)
-
-        for q in chunk:
-            si_no, subject, *_ = q
-
-            # avoid duplicates
-            if si_no not in st.session_state.reviewed:
-                st.session_state.reviewed.append(si_no)
-                st.session_state.practice_log.append((si_no, subject))
-
-        st.session_state[page_key] = True
-
-    # ====================================================
-    # 🔹 STEP 4: DISPLAY QUESTIONS
-    # ====================================================
-    for i, q in enumerate(chunk, start=1):
-        si_no, subject, question, answer, diff, reads, marked = q
-
-        st.markdown(f"### Q{i} (ID: {si_no})")
-        st.markdown(f"**Subject:** `{subject}`")
-        st.write(question)
-        st.success(answer)
-
-        colA, colB = st.columns([1, 3])
-
-        with colA:
-            mark_label = "⭐ Marked" if marked else "☆ Mark"
-            if st.button(mark_label, key=f"mark_{si_no}"):
-                toggle_mark_question(si_no, not marked)
-                st.rerun()
+        chapter_id = chapter_map[selected_chapter]
 
         st.markdown("---")
 
-    # ====================================================
-    # 🔹 STEP 5: NAVIGATION
-    # ====================================================
-    col1, col2 = st.columns(2)
+        # ====================================================
+        # ADD NOTE
+        # ====================================================
 
-    with col1:
-        if st.button("➡️ Next Set"):
-            st.session_state.bulk_index += q_count
+        note_text = st.text_area("Write Note")
+
+        uploaded_image = st.file_uploader(
+            "Upload Image",
+            type=["png", "jpg", "jpeg"]
+        )
+
+        if st.button("Save Note"):
+
+            image_url = None
+
+            if uploaded_image:
+
+                image_url = upload_note_image(
+                    uploaded_image
+                )
+
+            add_note(
+                chapter_id,
+                note_text,
+                image_url
+            )
+
+            st.success("Note Saved")
             st.rerun()
 
-    with col2:
-        if st.button("✅ Complete"):
-            st.session_state.show_summary = True
-            st.rerun()
-
-    # ====================================================
-    # 🔹 STEP 6: SUMMARY
-    # ====================================================
-    if st.session_state.show_summary:
-
-        st.subheader("📊 Practice Summary")
-
-        total = len(st.session_state.reviewed)
-
-        # ✅ FIXED METRIC (no crash)
-        st.metric("Total Questions Reviewed", total)
-
-        # Subject-wise distribution
-        subject_count = {}
-        for _, sub in st.session_state.practice_log:
-            subject_count[sub] = subject_count.get(sub, 0) + 1
-
-        st.write("### Subject-wise Distribution")
-        for sub, cnt in subject_count.items():
-            st.write(f"- {sub}: {cnt}")
+        st.markdown("---")
 
         # ====================================================
-        # 🔹 RESET BUTTON
+        # VIEW NOTES
         # ====================================================
-        if st.button("🔄 Start New Session"):
 
-            keys_to_delete = [
-                "bulk_started",
-                "bulk_subject",
-                "bulk_q_count",
-                "bulk_index",
-                "practice_log",
-                "reviewed",
-                "show_summary",
-            ]
+        notes = get_notes(chapter_id)
 
-            for key in keys_to_delete:
-                if key in st.session_state:
-                    del st.session_state[key]
+        for note in notes:
 
-            # clear page keys
-            for key in list(st.session_state.keys()):
-                if key.startswith("bulk_updated_"):
-                    del st.session_state[key]
+            st.markdown("----")
 
-            st.rerun()
+            updated_text = st.text_area(
+                "Edit Note",
+                value=note["note_text"] or "",
+                key=f"note_{note['id']}"
+            )
 
+            if note["image_path"]:
+                st.image(
+                    note["image_path"],
+                    width=400
+                )
 
+            new_image = st.file_uploader(
+                "Replace Image",
+                type=["png","jpg","jpeg"],
+                key=f"img_{note['id']}"
+            )
 
+            col1, col2 = st.columns(2)
 
+            with col1:
 
+                if st.button(
+                    "Update",
+                    key=f"upd_{note['id']}"
+                ):
 
+                    image_url = note["image_path"]
 
+                    if new_image:
 
+                        image_url = upload_note_image(
+                            new_image
+                        )
 
+                    update_note(
+                        note["id"],
+                        updated_text,
+                        image_url
+                    )
 
+                    st.success("Updated")
+                    st.rerun()
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_note_{note['id']}"
+                ):
+
+                    delete_note(note["id"])
+
+                    st.success("Deleted")
+                    st.rerun()
