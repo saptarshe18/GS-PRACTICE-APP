@@ -70,16 +70,33 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def login_user(username, password):
+
+    username = username.strip()
+    password = password.strip()
+
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, password_hash, role FROM users WHERE username=?", (username,))
+
+    cur.execute(
+        """
+        SELECT id, password_hash, role
+        FROM users
+        WHERE username=%s
+        """,
+        (username,)
+    )
+
     row = cur.fetchone()
+
     conn.close()
 
     if row:
+
         user_id, stored_hash, role = row
+
         if stored_hash == hash_password(password):
             return user_id, role
+
     return None, None
 
 # ============================================================
