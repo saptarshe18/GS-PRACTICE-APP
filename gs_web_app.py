@@ -1190,14 +1190,15 @@ elif mode == "Live Dashboard":
 
         st.markdown("### 📊 Subject-wise Practice")
 
-        for subject, count in subject_totals.items():
+        if rows:
 
-            st.write(f"{subject} : {count}")
+            st.markdown("### 📊 Subject-wise Practice")
 
-    else:
-        st.info("No practice data yet.")
+            for subject, count in subject_totals.items():
 
-    st.markdown("---")
+                st.write(f"{subject} : {count}")
+        else:
+            st.info("No practice data yet.")
 
     if role == "admin":
 
