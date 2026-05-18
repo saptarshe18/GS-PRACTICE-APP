@@ -1788,25 +1788,25 @@ elif mode == "Notes":
 
                 updated_name = st.text_input(
                     "Subject",
-                    value=sub["subject_name"],
-                    key=f"sub_{sub['id']}"
+                    value=sub[1],
+                    key=f"sub_{sub[0]}"
                 )
 
-                if updated_name != sub["subject_name"]:
+                if updated_name != sub[1]:
 
                     update_subject(
-                        sub["id"],
-                        updated_name
+                         sub[0],
+                         updated_name
                     )
 
             with col2:
 
                 if st.button(
                     "Delete",
-                    key=f"del_sub_{sub['id']}"
+                    key=f"del_sub_{sub[0]}"
                 ):
 
-                    delete_subject(sub["id"])
+                    delete_subject(sub[0])
                     st.rerun()
 
     # ========================================================
@@ -1824,7 +1824,7 @@ elif mode == "Notes":
             st.stop()
 
         subject_map = {
-            s["subject_name"]: s["id"]
+            s[1]: s[0]
             for s in subjects
         }
 
@@ -1859,14 +1859,14 @@ elif mode == "Notes":
 
                 updated_name = st.text_input(
                     "Chapter",
-                    value=chap["chapter_name"],
-                    key=f"chap_{chap['id']}"
+                    value=chap[2],
+                    key=f"chap_{chap[0]}"
                 )
 
-                if updated_name != chap["chapter_name"]:
+                if updated_name != chap[2]:
 
                     update_chapter(
-                        chap["id"],
+                        chap[0],
                         updated_name
                     )
 
@@ -1874,10 +1874,10 @@ elif mode == "Notes":
 
                 if st.button(
                     "Delete",
-                    key=f"del_chap_{chap['id']}"
+                    key=f"del_chap_{chap[0]}"
                 ):
 
-                    delete_chapter(chap["id"])
+                    delete_chapter(chap[0])
                     st.rerun()
 
     # ========================================================
@@ -1895,8 +1895,8 @@ elif mode == "Notes":
             st.stop()
 
         subject_map = {
-            s["subject_name"]: s["id"]
-            for s in subjects
+             s[1]: s[0]
+             for s in subjects
         }
 
         selected_subject = st.selectbox(
@@ -1913,7 +1913,7 @@ elif mode == "Notes":
             st.stop()
 
         chapter_map = {
-            c["chapter_name"]: c["id"]
+            c[2]: c[0]
             for c in chapters
         }
 
@@ -1970,20 +1970,18 @@ elif mode == "Notes":
 
             updated_text = st.text_area(
                 "Edit Note",
-                value=note["note_text"] or "",
-                key=f"note_{note['id']}"
+                value=note[2] or "",
+                key=f"note_{note[0]}"
             )
 
-            if note["image_path"]:
-                st.image(
-                    note["image_path"],
-                    width=400
+            if note[3]:
+                st.image(note[3], width=400)
                 )
 
             new_image = st.file_uploader(
                 "Replace Image",
                 type=["png","jpg","jpeg"],
-                key=f"img_{note['id']}"
+                key=f"img_{note[0]}"
             )
 
             col1, col2 = st.columns(2)
@@ -1992,10 +1990,10 @@ elif mode == "Notes":
 
                 if st.button(
                     "Update",
-                    key=f"upd_{note['id']}"
+                    key=f"upd_{note[0]}"
                 ):
 
-                    image_url = note["image_path"]
+                    image_url = note[3]
 
                     if new_image:
 
@@ -2004,7 +2002,7 @@ elif mode == "Notes":
                         )
 
                     update_note(
-                        note["id"],
+                         note[0],
                         updated_text,
                         image_url
                     )
@@ -2016,10 +2014,10 @@ elif mode == "Notes":
 
                 if st.button(
                     "Delete",
-                    key=f"del_note_{note['id']}"
+                    key=f"del_note_{note[0]}"
                 ):
 
-                    delete_note(note["id"])
+                    delete_note(note[0])
 
                     st.success("Deleted")
                     st.rerun()
