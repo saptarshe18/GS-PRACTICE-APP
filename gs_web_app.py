@@ -1735,6 +1735,7 @@ elif mode == "Bulk View":
 
         st.markdown(f"### Q{i} (ID: {si_no})")
         st.markdown(f"**Subject:** `{subject}`")
+        st.caption(f"👁️ Read Count: {reads or 0}")
         st.write(question)
         st.success(answer)
 
