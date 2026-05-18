@@ -148,6 +148,22 @@ if st.session_state.user_id is None:
     st.stop()
 
 # =====================================================
+# SESSION STATE INITIALIZATION
+# =====================================================
+
+if "session_easy" not in st.session_state:
+    st.session_state.session_easy = 0
+
+if "session_moderate" not in st.session_state:
+    st.session_state.session_moderate = 0
+
+if "session_difficult" not in st.session_state:
+    st.session_state.session_difficult = 0
+
+if "reviewed" not in st.session_state:
+    st.session_state.reviewed = []
+
+# =====================================================
 # SIDEBAR
 # =====================================================
 
@@ -855,10 +871,20 @@ if st.session_state.get("show_summary", False):
     # ✅ Difficulty metrics (safe access)
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Easy", st.session_state.session_easy)
-    col2.metric("Moderate", st.session_state.session_moderate)
-    col3.metric("Difficult", st.session_state.session_difficult)
+    col1.metric(
+     "Easy",
+     st.session_state.get("session_easy", 0)
+    )
 
+    col2.metric(
+     "Moderate",
+     st.session_state.get("session_moderate", 0)
+    )
+
+    col3.metric(
+     "Difficult",
+     st.session_state.get("session_difficult", 0)
+    )
     if st.button("Start New Session"):
 
         for key in [
