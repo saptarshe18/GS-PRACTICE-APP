@@ -23,6 +23,42 @@ SUBJECTS = [
     "West Bengal"
 ]
 
+SUBJECT_COLUMN_MAP = {
+
+    "Ancient & Medieval History":
+        "ancient_medieval_history",
+
+    "Modern History":
+        "modern_history",
+
+    "Geography":
+        "geography",
+
+    "Polity":
+        "polity",
+
+    "Economics":
+        "economics",
+
+    "Biology":
+        "biology",
+
+    "Physics":
+        "physics",
+
+    "Chemistry":
+        "chemistry",
+
+    "Environment":
+        "environment",
+
+    "Static Part":
+        "static_part",
+
+    "West Bengal":
+        "west_bengal"
+}
+
 # =====================================================
 # DATABASE CONNECTION
 # =====================================================
@@ -505,6 +541,11 @@ def update_read_count(si_no, subject):
 
     today = datetime.now().date()
 
+    column = SUBJECT_COLUMN_MAP.get(subject)
+
+    if not column:
+        return
+
     with get_connection() as conn:
 
         cur = conn.cursor()
@@ -524,40 +565,53 @@ def update_read_count(si_no, subject):
         )
 
         # ------------------------------------------------
-        # UPDATE DAILY SUBJECT SUMMARY
+        # INSERT DATE ROW IF NOT EXISTS
         # ------------------------------------------------
 
         cur.execute(
             """
             INSERT INTO practice_summary(
                 user_id,
-                practice_date,
-                subject,
-                question_count
+                practice_date
             )
-            VALUES(%s,%s,%s,1)
+            VALUES(%s,%s)
 
             ON CONFLICT (
                 user_id,
-                practice_date,
-                subject
+                practice_date
             )
-
-            DO UPDATE SET
-            question_count =
-                practice_summary.question_count + 1
+            DO NOTHING
             """,
             (
                 st.session_state.user_id,
-                today,
-                subject
+                today
+            )
+        )
+
+        # ------------------------------------------------
+        # UPDATE SUBJECT COLUMN
+        # ------------------------------------------------
+
+        query = f"""
+            UPDATE practice_summary
+            SET {column} =
+                COALESCE({column},0) + 1
+            WHERE user_id = %s
+            AND practice_date = %s
+        """
+
+        cur.execute(
+            query,
+            (
+                st.session_state.user_id,
+                today
             )
         )
 
         conn.commit()
 
 # =====================================================
-# UPDATE BULK QUESTION READ COUNT
+# UPDATE BULK READ COUNT
 # =====================================================
 
 def update_bulk_read_count(question_list):
@@ -567,7 +621,7 @@ def update_bulk_read_count(question_list):
     ids = [q[0] for q in question_list]
 
     # ------------------------------------------------
-    # SUBJECT-WISE COUNT
+    # SUBJECT COUNTS
     # ------------------------------------------------
 
     subject_counts = {}
@@ -599,41 +653,59 @@ def update_bulk_read_count(question_list):
         )
 
         # ------------------------------------------------
-        # UPDATE PRACTICE SUMMARY
+        # CREATE DATE ROW
+        # ------------------------------------------------
+
+        cur.execute(
+            """
+            INSERT INTO practice_summary(
+                user_id,
+                practice_date
+            )
+            VALUES(%s,%s)
+
+            ON CONFLICT (
+                user_id,
+                practice_date
+            )
+            DO NOTHING
+            """,
+            (
+                st.session_state.user_id,
+                today
+            )
+        )
+
+        # ------------------------------------------------
+        # UPDATE SUBJECT COUNTS
         # ------------------------------------------------
 
         for subject, count in subject_counts.items():
 
+            column = SUBJECT_COLUMN_MAP.get(subject)
+
+            if not column:
+                continue
+
+            query = f"""
+                UPDATE practice_summary
+                SET {column} =
+                    COALESCE({column},0) + %s
+                WHERE user_id = %s
+                AND practice_date = %s
+            """
+
             cur.execute(
-                """
-                INSERT INTO practice_summary(
-                    user_id,
-                    practice_date,
-                    subject,
-                    question_count
-                )
-                VALUES(%s,%s,%s,%s)
-
-                ON CONFLICT (
-                    user_id,
-                    practice_date,
-                    subject
-                )
-
-                DO UPDATE SET
-                question_count =
-                    practice_summary.question_count + %s
-                """,
+                query,
                 (
-                    st.session_state.user_id,
-                    today,
-                    subject,
                     count,
-                    count
+                    st.session_state.user_id,
+                    today
                 )
             )
 
         conn.commit()
+        
 def toggle_mark(si_no, current_status):
     conn = get_connection()
     cur = conn.cursor()
