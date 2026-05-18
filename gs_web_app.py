@@ -1829,6 +1829,87 @@ elif mode == "Notes":
         ]
     )
 
+    # ============================================================
+    # NOTES MODE
+    # ============================================================
+    if notes_mode == "View Notes":
+
+    st.subheader("📖 View Notes")
+
+    subjects = get_all_subjects()
+
+    if not subjects:
+        st.warning("No subjects available")
+        st.stop()
+
+    # ====================================================
+    # SUBJECT SELECT
+    # ====================================================
+
+    subject_map = {
+        s[1]: s[0]
+        for s in subjects
+    }
+
+    selected_subject = st.selectbox(
+        "Select Subject",
+        list(subject_map.keys())
+    )
+
+    subject_id = subject_map[selected_subject]
+
+    # ====================================================
+    # CHAPTER SELECT
+    # ====================================================
+
+    chapters = get_chapters(subject_id)
+
+    if not chapters:
+        st.warning("No chapters available")
+        st.stop()
+
+    chapter_map = {
+        c[2]: c[0]
+        for c in chapters
+    }
+
+    selected_chapter = st.selectbox(
+        "Select Chapter",
+        list(chapter_map.keys())
+    )
+
+    chapter_id = chapter_map[selected_chapter]
+
+    # ====================================================
+    # LOAD NOTES
+    # ====================================================
+
+    notes = get_notes(chapter_id)
+
+    if not notes:
+        st.info("No notes found")
+        st.stop()
+
+    st.markdown("---")
+
+    # ====================================================
+    # DISPLAY NOTES
+    # ====================================================
+
+    for note in notes:
+
+        st.markdown("## 📝 Note")
+
+        # note[2] = note_text
+        if note[2]:
+            st.write(note[2])
+
+        # note[3] = image_path
+        if note[3]:
+            st.image(note[3], width=500)
+
+        st.markdown("---")
+
     # ========================================================
     # SUBJECT MANAGEMENT
     # ========================================================
@@ -2099,80 +2180,4 @@ elif mode == "Notes":
                     st.success("Deleted")
                     st.rerun()
 
-if notes_mode == "View Notes":
 
-    st.subheader("📖 View Notes")
-
-    subjects = get_all_subjects()
-
-    if not subjects:
-        st.warning("No subjects available")
-        st.stop()
-
-    # ====================================================
-    # SUBJECT SELECT
-    # ====================================================
-
-    subject_map = {
-        s[1]: s[0]
-        for s in subjects
-    }
-
-    selected_subject = st.selectbox(
-        "Select Subject",
-        list(subject_map.keys())
-    )
-
-    subject_id = subject_map[selected_subject]
-
-    # ====================================================
-    # CHAPTER SELECT
-    # ====================================================
-
-    chapters = get_chapters(subject_id)
-
-    if not chapters:
-        st.warning("No chapters available")
-        st.stop()
-
-    chapter_map = {
-        c[2]: c[0]
-        for c in chapters
-    }
-
-    selected_chapter = st.selectbox(
-        "Select Chapter",
-        list(chapter_map.keys())
-    )
-
-    chapter_id = chapter_map[selected_chapter]
-
-    # ====================================================
-    # LOAD NOTES
-    # ====================================================
-
-    notes = get_notes(chapter_id)
-
-    if not notes:
-        st.info("No notes found")
-        st.stop()
-
-    st.markdown("---")
-
-    # ====================================================
-    # DISPLAY NOTES
-    # ====================================================
-
-    for note in notes:
-
-        st.markdown("## 📝 Note")
-
-        # note[2] = note_text
-        if note[2]:
-            st.write(note[2])
-
-        # note[3] = image_path
-        if note[3]:
-            st.image(note[3], width=500)
-
-        st.markdown("---")
