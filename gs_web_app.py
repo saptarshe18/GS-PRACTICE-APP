@@ -481,79 +481,143 @@ def get_questions(subject=None,difficulty=None,order="random"):
 # UPDATE READ COUNT
 # =====================================================
 
+# =====================================================
+# UPDATE SINGLE QUESTION READ COUNT
+# =====================================================
+
 def update_read_count(si_no, subject):
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().date()
 
     with get_connection() as conn:
+
         cur = conn.cursor()
 
-        # Update question read counter
+        # ------------------------------------------------
+        # UPDATE QUESTION READ COUNT
+        # ------------------------------------------------
+
         cur.execute(
             """
             UPDATE quiz
-            SET reading_times = reading_times + 1
+            SET reading_times =
+                COALESCE(reading_times,0) + 1
             WHERE si_no = %s
             """,
             (si_no,)
         )
 
-        # Log every practice event
+        # ------------------------------------------------
+        # UPDATE DAILY SUBJECT SUMMARY
+        # ------------------------------------------------
+
         cur.execute(
             """
-            INSERT INTO practice_log(user_id,date,subject,question_id)
-            VALUES(%s,%s,%s,%s)
+            INSERT INTO practice_summary(
+                user_id,
+                practice_date,
+                subject,
+                question_count
+            )
+            VALUES(%s,%s,%s,1)
+
+            ON CONFLICT (
+                user_id,
+                practice_date,
+                subject
+            )
+
+            DO UPDATE SET
+            question_count =
+                practice_summary.question_count + 1
             """,
             (
                 st.session_state.user_id,
                 today,
-                subject,
-                si_no
+                subject
             )
         )
 
         conn.commit()
 
+# =====================================================
+# UPDATE BULK QUESTION READ COUNT
+# =====================================================
+
 def update_bulk_read_count(question_list):
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().date()
 
     ids = [q[0] for q in question_list]
 
+    # ------------------------------------------------
+    # SUBJECT-WISE COUNT
+    # ------------------------------------------------
+
+    subject_counts = {}
+
+    for q in question_list:
+
+        subject = q[1]
+
+        subject_counts[subject] = (
+            subject_counts.get(subject, 0) + 1
+        )
+
     with get_connection() as conn:
+
         cur = conn.cursor()
 
-        # Bulk update
+        # ------------------------------------------------
+        # UPDATE QUESTION READ COUNTS
+        # ------------------------------------------------
+
         cur.execute(
             """
             UPDATE quiz
-            SET reading_times = reading_times + 1
+            SET reading_times =
+                COALESCE(reading_times,0) + 1
             WHERE si_no = ANY(%s)
             """,
             (ids,)
         )
 
-        # Bulk insert logs
-        log_data = [
-            (
-                st.session_state.user_id,
-                today,
-                q[1],
-                q[0]
-            )
-            for q in question_list
-        ]
+        # ------------------------------------------------
+        # UPDATE PRACTICE SUMMARY
+        # ------------------------------------------------
 
-        cur.executemany(
-            """
-            INSERT INTO practice_log(user_id,date,subject,question_id)
-            VALUES(%s,%s,%s,%s)
-            """,
-            log_data
-        )
+        for subject, count in subject_counts.items():
+
+            cur.execute(
+                """
+                INSERT INTO practice_summary(
+                    user_id,
+                    practice_date,
+                    subject,
+                    question_count
+                )
+                VALUES(%s,%s,%s,%s)
+
+                ON CONFLICT (
+                    user_id,
+                    practice_date,
+                    subject
+                )
+
+                DO UPDATE SET
+                question_count =
+                    practice_summary.question_count + %s
+                """,
+                (
+                    st.session_state.user_id,
+                    today,
+                    subject,
+                    count,
+                    count
+                )
+            )
 
         conn.commit()
-
 def toggle_mark(si_no, current_status):
     conn = get_connection()
     cur = conn.cursor()
@@ -911,8 +975,8 @@ elif mode == "Live Dashboard":
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT COUNT(*)
-            FROM practice_log
+            SELECT COALESCE(SUM(question_count),0)
+            FROM practice_summary
             WHERE user_id = %s
         """, (user_id,))
 
@@ -932,7 +996,7 @@ elif mode == "Live Dashboard":
                 cur = conn.cursor()
 
                 cur.execute("""
-                    DELETE FROM practice_log
+                    DELETE FROM practice_summary
                     WHERE user_id = %s
                 """, (user_id,))
 
@@ -949,11 +1013,13 @@ elif mode == "Live Dashboard":
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT subject, COUNT(*)
-            FROM practice_log
+            SELECT
+                subject,
+                SUM(question_count)
+            FROM practice_summary
             WHERE user_id = %s
             GROUP BY subject
-            ORDER BY COUNT(*) DESC
+            ORDER BY SUM(question_count) DESC
         """, (user_id,))
 
         subject_reads = cur.fetchall()
@@ -976,7 +1042,7 @@ elif mode == "Live Dashboard":
                         cur = conn.cursor()
 
                         cur.execute("""
-                            DELETE FROM practice_log
+                            DELETE FROM practice_summary
                             WHERE user_id = %s
                             AND subject = %s
                         """, (user_id, subject))
@@ -999,12 +1065,14 @@ elif mode == "Live Dashboard":
             cur = conn.cursor()
 
             cur.execute("""
-                SELECT u.username, COUNT(p.question_id)
+                SELECT
+                    u.username,
+                    COALESCE(SUM(p.question_count),0)
                 FROM users u
-                LEFT JOIN practice_log p
+                LEFT JOIN practice_summary p
                 ON u.id = p.user_id
                 GROUP BY u.username
-                ORDER BY COUNT(p.question_id) DESC
+                ORDER BY COALESCE(SUM(p.question_count),0) DESC
             """)
 
             user_stats = cur.fetchall()
@@ -1120,8 +1188,10 @@ elif mode == "Analytics":
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT date, COUNT(*)
-            FROM practice_log
+            SELECT
+                practice_date,
+                SUM(question_count)
+            FROM practice_summary
             WHERE user_id = %s
             GROUP BY date
             ORDER BY date
@@ -1208,7 +1278,7 @@ elif mode == "User Management":
                     )
 
                     cur.execute(
-                        "DELETE FROM practice_log WHERE user_id = %s",
+                        "DELETE FROM practice_summary WHERE user_id = %s",
                         (user_id,)
                     )
 
