@@ -1765,49 +1765,57 @@ elif mode == "Notes":
 
     if notes_mode == "Manage Subjects":
 
-    st.subheader("📘 Subject Management")
+        st.subheader("📘 Subject Management")
 
-    new_subject = st.text_input("New Subject")
+        new_subject = st.text_input("New Subject")
 
-    if st.button("Add Subject"):
+        if st.button("Add Subject"):
 
-        if new_subject.strip():
+            if new_subject.strip():
 
-            add_subject(new_subject)
+                add_subject(new_subject)
 
-            st.success("Subject Added")
-            st.rerun()
+                st.success("Subject Added")
+                st.rerun()
 
-    subjects = get_all_subjects()
+        subjects = get_all_subjects()
 
-    for sub in subjects:
+        for sub in subjects:
 
-        col1, col2 = st.columns([4,1])
+            col1, col2 = st.columns([4,1])
 
-        with col1:
+            with col1:
 
-            updated_name = st.text_input(
-                "Subject",
-                value=sub[1],
-                key=f"sub_{sub[0]}"
-            )
-
-            if updated_name != sub[1]:
-
-                update_subject(
-                    sub[0],
-                    updated_name
+                updated_name = st.text_input(
+                    "Subject",
+                    value=sub[1],
+                    key=f"sub_{sub[0]}"
                 )
 
-        with col2:
+                if st.button(
+                    "Update",
+                    key=f"upd_sub_{sub[0]}"
+                ):
 
-            if st.button(
-                "Delete",
-                key=f"del_sub_{sub[0]}"
-            ):
+                    update_subject(
+                        sub[0],
+                        updated_name
+                    )
 
-                delete_subject(sub[0])
-                st.rerun()
+                    st.success("Updated")
+                    st.rerun()
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_sub_{sub[0]}"
+                ):
+
+                    delete_subject(sub[0])
+
+                    st.success("Deleted")
+                    st.rerun()
 
     # ========================================================
     # CHAPTER MANAGEMENT
@@ -1976,7 +1984,6 @@ elif mode == "Notes":
 
             if note[3]:
                 st.image(note[3], width=400)
-                )
 
             new_image = st.file_uploader(
                 "Replace Image",
