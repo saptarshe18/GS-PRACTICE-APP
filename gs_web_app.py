@@ -383,30 +383,80 @@ def delete_chapter(chapter_id):
     conn.commit()
     conn.close()
 
-def add_note(chapter_id, note_text, image_url):
+def add_note(chapter_id, new_text, image_url=None):
 
     conn = get_connection()
     cur = conn.cursor()
 
+    # ---------------------------------------------
+    # CHECK EXISTING NOTE
+    # ---------------------------------------------
+
     cur.execute(
         """
-        INSERT INTO notes_content(
-            chapter_id,
-            note_text,
-            image_path
-        )
-        VALUES(%s, %s, %s)
+        SELECT id, note_text, image_path
+        FROM notes_content
+        WHERE chapter_id=%s
         """,
-        (
-            chapter_id,
-            note_text,
-            image_url
-        )
+        (chapter_id,)
     )
+
+    existing = cur.fetchone()
+
+    # ---------------------------------------------
+    # IF NOTE EXISTS → APPEND
+    # ---------------------------------------------
+
+    if existing:
+
+        note_id, old_text, old_image = existing
+
+        combined_text = (
+            (old_text or "")
+            + "\n\n"
+            + (new_text or "")
+        )
+
+        final_image = image_url or old_image
+
+        cur.execute(
+            """
+            UPDATE notes_content
+            SET note_text=%s,
+                image_path=%s
+            WHERE id=%s
+            """,
+            (
+                combined_text,
+                final_image,
+                note_id
+            )
+        )
+
+    # ---------------------------------------------
+    # CREATE NEW NOTE
+    # ---------------------------------------------
+
+    else:
+
+        cur.execute(
+            """
+            INSERT INTO notes_content(
+                chapter_id,
+                note_text,
+                image_path
+            )
+            VALUES(%s,%s,%s)
+            """,
+            (
+                chapter_id,
+                new_text,
+                image_url
+            )
+        )
 
     conn.commit()
     conn.close()
-
 def get_notes(chapter_id):
 
     conn = get_connection()
@@ -2074,13 +2124,14 @@ elif mode == "Notes":
         # DISPLAY NOTES
         # ====================================================
 
-        for note in notes:
+        if notes:
 
+            note = notes[0]
             st.markdown("## 📝 Note")
 
             # note[2] = note_text
             if note[2]:
-                st.write(note[2])
+                st.markdown(note[2])
 
             # note[3] = image_path
             if note[3]:
@@ -2275,7 +2326,10 @@ elif mode == "Notes":
         # ADD NOTE
         # ====================================================
 
-        note_text = st.text_area("Write Note")
+        note_text = st.text_area(
+                    "Append to Chapter Notes",
+                    height=300
+                    )
 
         uploaded_image = st.file_uploader(
             "Upload Image",
@@ -2309,7 +2363,9 @@ elif mode == "Notes":
 
         notes = get_notes(chapter_id)
 
-        for note in notes:
+        if notes:
+
+            note = notes[0]
 
             st.markdown("----")
 
