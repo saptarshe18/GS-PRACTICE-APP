@@ -4,6 +4,10 @@ import random
 import hashlib
 import pandas as pd
 from datetime import datetime
+import uuid
+import time
+
+from supabase import create_client
 
 # =====================================================
 # SUBJECT LIST
@@ -25,7 +29,7 @@ SUBJECTS = [
 
 SUBJECT_COLUMN_MAP = {
 
-    "Ancient & Medieval History":
+    "Ancient and Medieval History":
         "ancient_medieval_history",
 
     "Modern History":
@@ -197,7 +201,7 @@ if "session_difficult" not in st.session_state:
     st.session_state.session_difficult = 0
 
 if "reviewed" not in st.session_state:
-    st.session_state.reviewed = []
+    st.session_state.reviewed = 0
 
 # =====================================================
 # SIDEBAR
@@ -707,10 +711,21 @@ def update_bulk_read_count(question_list):
         conn.commit()
         
 def toggle_mark(si_no, current_status):
+
     conn = get_connection()
     cur = conn.cursor()
+
     new_status = 0 if current_status == 1 else 1
-    cur.execute("UPDATE quiz SET is_marked=? WHERE si_no=?", (new_status, si_no))
+
+    cur.execute(
+        """
+        UPDATE quiz
+        SET is_marked=%s
+        WHERE si_no=%s
+        """,
+        (new_status, si_no)
+    )
+
     conn.commit()
     conn.close()
 
@@ -933,7 +948,7 @@ if st.session_state.get("show_summary", False):
 
     st.metric(
         "Total Questions Reviewed",
-        len(st.session_state.get("reviewed", []))
+        st.session_state.get("reviewed", 0)
     )
     # ✅ Total reviewed (safe)
     total_reviewed = len(st.session_state.get("reviewed", []))
@@ -1073,10 +1088,25 @@ elif mode == "Live Dashboard":
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT COALESCE(SUM(question_count),0)
-            FROM practice_summary
-            WHERE user_id = %s
-        """, (user_id,))
+    SELECT
+        COALESCE(SUM(
+            ancient_medieval_history +
+            modern_history +
+            geography +
+            polity +
+            economics +
+            biology +
+            physics +
+            chemistry +
+            environment +
+            static_part +
+            west_bengal
+        ),0)
+
+    FROM practice_summary
+
+    WHERE user_id = %s
+""", (user_id,))
 
         user_total_reads = cur.fetchone()[0] or 0
 
@@ -1108,47 +1138,61 @@ elif mode == "Live Dashboard":
     # ====================================================
 
     with get_connection() as conn:
+
         cur = conn.cursor()
 
         cur.execute("""
             SELECT
-                subject,
-                SUM(question_count)
+                ancient_medieval_history,
+                modern_history,
+                geography,
+                polity,
+                economics,
+                biology,
+                physics,
+                chemistry,
+                environment,
+                static_part,
+                west_bengal
             FROM practice_summary
             WHERE user_id = %s
-            GROUP BY subject
-            ORDER BY SUM(question_count) DESC
         """, (user_id,))
 
-        subject_reads = cur.fetchall()
+        rows = cur.fetchall()
 
-    if subject_reads:
+        subject_totals = {
+            "Ancient and Medieval History": 0,
+            "Modern History": 0,
+            "Geography": 0,
+            "Polity": 0,
+            "Economics": 0,
+            "Biology": 0,
+            "Physics": 0,
+            "Chemistry": 0,
+            "Environment": 0,
+            "Static Part": 0,
+            "West Bengal": 0
+        }
+
+        for row in rows:
+
+            subject_totals["Ancient and Medieval History"] += row[0] or 0
+            subject_totals["Modern History"] += row[1] or 0
+            subject_totals["Geography"] += row[2] or 0
+            subject_totals["Polity"] += row[3] or 0
+            subject_totals["Economics"] += row[4] or 0
+            subject_totals["Biology"] += row[5] or 0
+            subject_totals["Physics"] += row[6] or 0
+            subject_totals["Chemistry"] += row[7] or 0
+            subject_totals["Environment"] += row[8] or 0
+            subject_totals["Static Part"] += row[9] or 0
+            subject_totals["West Bengal"] += row[10] or 0
 
         st.markdown("### 📊 Subject-wise Practice")
 
-        for subject, count in subject_reads:
+        for subject, count in subject_totals.items():
 
-            col1, col2 = st.columns([3,1])
-
-            with col1:
-                st.write(f"{subject} : {count}")
-
-            with col2:
-                if st.button(f"Reset {subject}", key=f"reset_{subject}"):
-
-                    with get_connection() as conn:
-                        cur = conn.cursor()
-
-                        cur.execute("""
-                            DELETE FROM practice_summary
-                            WHERE user_id = %s
-                            AND subject = %s
-                        """, (user_id, subject))
-
-                        conn.commit()
-
-                    st.success(f"{subject} data reset.")
-                    st.rerun()
+            st.write(f"{subject} : {count}")
 
     else:
         st.info("No practice data yet.")
@@ -1165,12 +1209,29 @@ elif mode == "Live Dashboard":
             cur.execute("""
                 SELECT
                     u.username,
-                    COALESCE(SUM(p.question_count),0)
+
+                    COALESCE(SUM(
+                        p.ancient_medieval_history +
+                        p.modern_history +
+                        p.geography +
+                        p.polity +
+                        p.economics +
+                        p.biology +
+                        p.physics +
+                        p.chemistry +
+                        p.environment +
+                        p.static_part +
+                        p.west_bengal
+                    ),0)
+
                 FROM users u
+
                 LEFT JOIN practice_summary p
                 ON u.id = p.user_id
+
                 GROUP BY u.username
-                ORDER BY COALESCE(SUM(p.question_count),0) DESC
+
+                ORDER BY 2 DESC
             """)
 
             user_stats = cur.fetchall()
@@ -1288,11 +1349,28 @@ elif mode == "Analytics":
         cur.execute("""
             SELECT
                 practice_date,
-                SUM(question_count)
+
+                SUM(
+                    ancient_medieval_history +
+                    modern_history +
+                    geography +
+                    polity +
+                    economics +
+                    biology +
+                    physics +
+                    chemistry +
+                    environment +
+                    static_part +
+                    west_bengal
+                )
+
             FROM practice_summary
+
             WHERE user_id = %s
-            GROUP BY date
-            ORDER BY date
+
+            GROUP BY practice_date
+
+            ORDER BY practice_date
         """, (st.session_state.user_id,))
 
         rows = cur.fetchall()
@@ -1771,7 +1849,7 @@ elif mode == "Bulk View":
             st.session_state.bulk_subject = subject
             st.session_state.bulk_index = 0
             st.session_state.practice_log = []
-            st.session_state.reviewed = []
+            st.session_state.reviewed = 0
             st.session_state.show_summary = False
 
             # 🔹 Clear old page keys
@@ -1818,10 +1896,9 @@ elif mode == "Bulk View":
         for q in chunk:
             si_no, subject, *_ = q
 
-            # avoid duplicates
-            if si_no not in st.session_state.reviewed:
-                st.session_state.reviewed.append(si_no)
-                st.session_state.practice_log.append((si_no, subject))
+
+            st.session_state.reviewed += 1
+            st.session_state.practice_log.append((si_no, subject))
 
         st.session_state[page_key] = True
 
@@ -1842,7 +1919,7 @@ elif mode == "Bulk View":
         with colA:
             mark_label = "⭐ Marked" if marked else "☆ Mark"
             if st.button(mark_label, key=f"mark_{si_no}"):
-                toggle_mark_question(si_no, not marked)
+                toggle_mark(si_no, not marked)
                 st.rerun()
 
         st.markdown("---")
@@ -1869,7 +1946,7 @@ elif mode == "Bulk View":
 
         st.subheader("📊 Practice Summary")
 
-        total = len(st.session_state.reviewed)
+        total = st.session_state.reviewed
 
         # ✅ FIXED METRIC (no crash)
         st.metric("Total Questions Reviewed", total)
