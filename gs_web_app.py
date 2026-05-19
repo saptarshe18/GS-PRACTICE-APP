@@ -522,6 +522,8 @@ def delete_note(note_id):
     conn.commit()
     conn.close()
 
+import uuid
+
 def upload_note_image(uploaded_file):
 
     ext = uploaded_file.name.split(".")[-1]
