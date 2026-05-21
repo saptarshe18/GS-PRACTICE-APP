@@ -1240,7 +1240,6 @@ elif mode == "Live Dashboard":
             subject_totals["Static Part"] += row[9] or 0
             subject_totals["West Bengal"] += row[10] or 0
 
-        st.markdown("### 📊 Subject-wise Practice")
 
         if rows:
 
