@@ -998,13 +998,8 @@ if st.session_state.get("show_summary", False):
 
     st.markdown("## 📊 Practice Session Summary")
 
-    st.metric(
-        "Total Questions Reviewed",
-        st.session_state.get("reviewed", 0)
-    )
-    # ✅ Total reviewed (safe)
-    total_reviewed = len(st.session_state.get("reviewed", []))
-
+    # Safe tracking alternative:
+    total_reviewed = st.session_state.get("reviewed", 0)
     st.metric("Total Questions Reviewed", total_reviewed)
 
     # ✅ Difficulty metrics (safe access)
@@ -1065,7 +1060,7 @@ if st.session_state.get("show_summary", False):
             "bulk_q_count": 30,
             "bulk_index": 0,
             "practice_log": [],
-            "reviewed": [],
+            "reviewed": 0,
             "show_summary": False,
             "session_easy": 0,
             "session_moderate": 0,
