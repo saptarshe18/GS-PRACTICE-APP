@@ -551,7 +551,7 @@ elif parent_mode == "Test/Practice":
             # Fetch current linked chapter text in quiz if it exists
             cur.execute("SELECT chapters FROM quiz WHERE si_no = %s", (si_no,))
             quiz_row = cur.fetchone()
-            cur.execute("SELECT chapter_name FROM subject_chapters WHERE subject_code = %s", (quiz_row,))
+            cur.execute("SELECT chapter_name FROM subject_chapters WHERE chapter_code = %s", (quiz_row,))
             sub_quiz = cur.fetchone()
             current_mapped_chapter = quiz_row[0] if sub_quiz else None
 
