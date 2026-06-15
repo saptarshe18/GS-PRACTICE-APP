@@ -339,7 +339,18 @@ def get_questions(subject=None,difficulty=None,order="random"):
     if order == "random":
         random.shuffle(rows)
     return rows
-
+    
+def update_question_chapter(si_no, chapter_code):
+    """Updates the chapters string column for a specific quiz question."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE quiz 
+            SET chapters = %s 
+            WHERE si_no = %s
+        """, (chapter_code, si_no))
+        conn.commit()
+        
 def update_read_count(si_no, subject):
     today = datetime.now().date()
     column = SUBJECT_COLUMN_MAP.get(subject)
@@ -499,6 +510,7 @@ elif parent_mode == "Test/Practice":
             st.rerun()
 
         q = questions[st.session_state.index]
+        # chapters column index loaded from quiz structure (mapping to string or None)
         si_no, subject, question, answer, diff, reads, marked = q
 
         st.info(f"Reviewed This Session: {st.session_state.reviewed}")
@@ -507,6 +519,46 @@ elif parent_mode == "Test/Practice":
         st.write(f"**Reads:** {reads}")
         st.write(question)
 
+        # ----------------------------------------------------
+        # DYNAMIC CHAPTER DROPDOWN LOGIC FOR THIS QUESTION
+        # ----------------------------------------------------
+        st.markdown("### 🏷️ Map Chapter")
+        
+        # 1. Fetch matching notes chapters for this question's subject
+        with get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT nc.chapter_name 
+                FROM notes_chapters nc
+                JOIN notes_subjects ns ON nc.subject_id = ns.id
+                WHERE ns.subject_name = %s
+                ORDER BY nc.chapter_name
+            """, (subject,))
+            db_chapters = cur.fetchall()
+            
+            # Fetch current linked chapter string in quiz if it exists
+            cur.execute("SELECT chapters FROM quiz WHERE si_no = %s", (si_no,))
+            current_mapped_chapter = cur.fetchone()[0]
+
+        # 2. Render Dropdown Menu
+        chapter_options = ["None / Unassigned"] + [ch[0] for ch in db_chapters]
+        
+        # Pre-select index if it matches what is already inside the quiz DB
+        default_idx = 0
+        if current_mapped_chapter in chapter_options:
+            default_idx = chapter_options.index(current_mapped_chapter)
+
+        selected_chapter = st.selectbox(
+            f"Select Chapter for Q-{si_no}", 
+            options=chapter_options, 
+            index=default_idx
+        )
+
+        st.markdown("---")
+
+        # ----------------------------------------------------
+        # INTERACTION BUTTONS
+        # ----------------------------------------------------
         colA, colB = st.columns(2)
         with colA:
             if st.button("⭐ Mark / Unmark"):
@@ -533,12 +585,20 @@ elif parent_mode == "Test/Practice":
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("Next"):
+            if st.button("Next ➡️"):
+                # AUTOMATIC SAVE ON MOVE NEXT
+                final_chapter_val = None if selected_chapter == "None / Unassigned" else selected_chapter
+                update_question_chapter(si_no, final_chapter_val)
+                
                 st.session_state.index += 1
                 st.session_state.answer_shown = False
                 st.rerun()
         with col2:
             if st.button("⏹ End Practice"):
+                # AUTOMATIC SAVE ON FINISH
+                final_chapter_val = None if selected_chapter == "None / Unassigned" else selected_chapter
+                update_question_chapter(si_no, final_chapter_val)
+                
                 st.session_state.practice_active = False
                 st.session_state.show_summary = True
                 st.rerun()
