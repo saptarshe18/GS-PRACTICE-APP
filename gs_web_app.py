@@ -340,15 +340,25 @@ def get_questions(subject=None,difficulty=None,order="random"):
         random.shuffle(rows)
     return rows
     
-def update_question_chapter(si_no, chapter_code):
+def update_question_chapter(si_no,chapter_name):
     """Updates the chapters string column for a specific quiz question."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT chapter_code 
+            FROM subject_chapters 
+            WHERE chapter_name = %s
+            """, (chapter_name,))
+        code = cur.fetchone()
+        conn.commit()
+        
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("""
             UPDATE quiz 
             SET chapters = %s 
             WHERE si_no = %s
-        """, (chapter_code, si_no))
+        """, (code, si_no))
         conn.commit()
         
 def update_read_count(si_no, subject):
@@ -529,12 +539,11 @@ elif parent_mode == "Test/Practice":
             cur = conn.cursor()
             
             db_chapters = []
-            subject_id = subject_row[0]
             # Fetch all chapters created under this subject
             cur.execute("""
                     SELECT chapter_name 
                     FROM subject_chapters 
-                    WHERE subject_id = %s 
+                    WHERE subject = %s 
                     ORDER BY chapter_name
                 """, (subject,))
             db_chapters = cur.fetchall()
@@ -592,7 +601,7 @@ elif parent_mode == "Test/Practice":
             if st.button("Next ➡️"):
                 # AUTOMATIC SAVE ON MOVE NEXT
                 final_chapter_val = None if selected_chapter == "None / Unassigned" else selected_chapter
-                update_question_chapter(si_no, final_chapter_val)
+                update_question_chapter(si_no,final_chapter_val)
                 
                 st.session_state.index += 1
                 st.session_state.answer_shown = False
@@ -601,7 +610,7 @@ elif parent_mode == "Test/Practice":
             if st.button("⏹ End Practice"):
                 # AUTOMATIC SAVE ON FINISH
                 final_chapter_val = None if selected_chapter == "None / Unassigned" else selected_chapter
-                update_question_chapter(si_no, final_chapter_val)
+                (si_no, final_chapter_val)
                 
                 st.session_state.practice_active = False
                 st.session_state.show_summary = True
