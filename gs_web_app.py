@@ -527,20 +527,17 @@ elif parent_mode == "Test/Practice":
         # 1. First find the matching internal notes subject ID safely
         with get_connection() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id FROM notes_subjects WHERE subject_name = %s", (subject,))
-            subject_row = cur.fetchone()
             
             db_chapters = []
-            if subject_row:
-                subject_id = subject_row[0]
-                # Fetch all chapters created under this subject
-                cur.execute("""
+            subject_id = subject_row[0]
+            # Fetch all chapters created under this subject
+            cur.execute("""
                     SELECT chapter_name 
-                    FROM notes_chapters 
+                    FROM subject_chapters 
                     WHERE subject_id = %s 
                     ORDER BY chapter_name
-                """, (subject_id,))
-                db_chapters = cur.fetchall()
+                """, (subject,))
+            db_chapters = cur.fetchall()
             
             # Fetch current linked chapter text in quiz if it exists
             cur.execute("SELECT chapters FROM quiz WHERE si_no = %s", (si_no,))
