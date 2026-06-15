@@ -524,28 +524,35 @@ elif parent_mode == "Test/Practice":
         # ----------------------------------------------------
         st.markdown("### 🏷️ Map Chapter")
         
-        # 1. Fetch matching notes chapters for this question's subject
+        # 1. First find the matching internal notes subject ID safely
         with get_connection() as conn:
             cur = conn.cursor()
-            cur.execute("""
-                SELECT nc.chapter_name 
-                FROM notes_chapters nc
-                JOIN notes_subjects ns ON nc.subject_id = ns.id
-                WHERE ns.subject_name = %s
-                ORDER BY nc.chapter_name
-            """, (subject,))
-            db_chapters = cur.fetchall()
+            cur.execute("SELECT id FROM notes_subjects WHERE subject_name = %s", (subject,))
+            subject_row = cur.fetchone()
             
-            # Fetch current linked chapter string in quiz if it exists
+            db_chapters = []
+            if subject_row:
+                subject_id = subject_row[0]
+                # Fetch all chapters created under this subject
+                cur.execute("""
+                    SELECT chapter_name 
+                    FROM notes_chapters 
+                    WHERE subject_id = %s 
+                    ORDER BY chapter_name
+                """, (subject_id,))
+                db_chapters = cur.fetchall()
+            
+            # Fetch current linked chapter text in quiz if it exists
             cur.execute("SELECT chapters FROM quiz WHERE si_no = %s", (si_no,))
-            current_mapped_chapter = cur.fetchone()[0]
+            quiz_row = cur.fetchone()
+            current_mapped_chapter = quiz_row[0] if quiz_row else None
 
-        # 2. Render Dropdown Menu
+        # 2. Render Dropdown Menu safely
         chapter_options = ["None / Unassigned"] + [ch[0] for ch in db_chapters]
         
         # Pre-select index if it matches what is already inside the quiz DB
         default_idx = 0
-        if current_mapped_chapter in chapter_options:
+        if current_mapped_chapter and current_mapped_chapter in chapter_options:
             default_idx = chapter_options.index(current_mapped_chapter)
 
         selected_chapter = st.selectbox(
