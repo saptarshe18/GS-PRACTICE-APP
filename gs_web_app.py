@@ -527,17 +527,17 @@ elif parent_mode == "Test/Practice":
 
                     rows = cur.fetchall()
 
-                chapter_map = {
-                    row[0]: row[1]
-                    for row in rows
-                }
+                    chapter_map = {
+                        row[0]: row[1]
+                        for row in rows
+                    }
 
-                selected_chapter = st.selectbox(
-                    "Select Chapter",
-                    list(chapter_map.keys())
-                )
+                    selected_chapter = st.selectbox(
+                        "Select Chapter",
+                        ["All Chapters"] + list(chapter_map.keys())
+                    )
 
-                chapter_code = chapter_map[selected_chapter]
+                    chapter_code = chapter_map[selected_chapter]
 
         if test_practice_option == "Subject Practice":
             with get_connection() as conn:
@@ -567,18 +567,18 @@ elif parent_mode == "Test/Practice":
 
                 rows = cur.fetchall()
 
-          chapter_map = {
-                row[0]: row[1]
-                for row in rows
-                 }
+                chapter_map = {
+                    row[0]: row[1]
+                    for row in rows
+                }
 
-          selected_chapter = st.selectbox(
-                "Select Chapter",
-                ["All Chapters"] + list(chapter_map.keys())
+                selected_chapter = st.selectbox(
+                    "Select Chapter",
+                    ["All Chapters"] + list(chapter_map.keys())
                 )
 
-          if selected_chapter != "All Chapters":
-             chapter_code = chapter_map[selected_chapter]
+                if selected_chapter != "All Chapters":
+                     chapter_code = chapter_map[selected_chapter]
 
         difficulty_option = st.selectbox("Difficulty", ["All", "Easy", "Moderate", "Difficult"])
         difficulty_map = {"Easy": 1, "Moderate": 2, "Difficult": 3}
