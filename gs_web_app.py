@@ -313,35 +313,60 @@ def upload_note_image(uploaded_file):
 # FETCH & PROCESS QUESTIONS UTILITIES
 # =====================================================
 
-def get_questions(subject=None,difficulty=None,order="random"):
+def get_questions(
+        subject=None,
+        difficulty=None,
+        chapter_code=None,
+        order="random"
+):
     with get_connection() as conn:
         cur = conn.cursor()
-        query = "SELECT si_no,subject,question,answer,difficulty, COALESCE(reading_times,0),COALESCE(is_marked,0) FROM quiz"
+
+        query = """
+        SELECT
+            si_no,
+            subject,
+            question,
+            answer,
+            difficulty,
+            COALESCE(reading_times,0),
+            COALESCE(is_marked,0)
+        FROM quiz
+        """
+
         conditions = []
         params = []
 
         if subject:
             conditions.append("subject=%s")
             params.append(subject)
+
         if difficulty:
             conditions.append("difficulty=%s")
             params.append(difficulty)
+
+        if chapter_code:
+            conditions.append("chapters=%s")
+            params.append(chapter_code)
+
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
+
         if order == "most":
             query += " ORDER BY reading_times DESC"
-        if order == "least":
+
+        elif order == "least":
             query += " ORDER BY reading_times ASC"
 
-        cur.execute(query,params)
+        cur.execute(query, params)
         rows = cur.fetchall()
 
     if order == "random":
         random.shuffle(rows)
+
     return rows
     
 def update_question_chapter(si_no,chapter_name):
-    """Updates the chapters string column for a specific quiz question."""
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("""
@@ -475,6 +500,45 @@ elif parent_mode == "Test/Practice":
         subject = None
         difficulty = None
         order_type = "random"
+        chapter_code = None
+
+        if test_practice_option == "Mixed Practice":
+
+            filter_chapter = st.checkbox(
+                "Filter By Chapter"
+            )
+
+           if filter_chapter:
+
+                subject = st.selectbox(
+                    "Select Subject",
+                    SUBJECTS
+                )
+
+                with get_connection() as conn:
+                    cur = conn.cursor()
+
+                    cur.execute("""
+                        SELECT chapter_name,
+                               chapter_code
+                        FROM subject_chapters
+                        WHERE subject=%s
+                        ORDER BY chapter_name
+                    """,(subject,))
+
+                    rows = cur.fetchall()
+
+                chapter_map = {
+                    row[0]: row[1]
+                    for row in rows
+                }
+
+                selected_chapter = st.selectbox(
+                    "Select Chapter",
+                    list(chapter_map.keys())
+                )
+
+                chapter_code = chapter_map[selected_chapter]
 
         if test_practice_option == "Subject Practice":
             with get_connection() as conn:
@@ -489,6 +553,33 @@ elif parent_mode == "Test/Practice":
             subject_options = [f"{sub} ({count})" for sub, count in subject_counts.items()]
             selected_display = st.selectbox("Select Subject", subject_options)
             subject = selected_display.rsplit(" (", 1)[0]
+            chapter_code = None
+
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    SELECT chapter_name,
+                           chapter_code
+                    FROM subject_chapters
+                    WHERE subject=%s
+                    ORDER BY chapter_name
+                """,(subject,))
+
+                rows = cur.fetchall()
+
+          chapter_map = {
+                row[0]: row[1]
+                for row in rows
+                 }
+
+          selected_chapter = st.selectbox(
+                "Select Chapter",
+                ["All Chapters"] + list(chapter_map.keys())
+                )
+
+          if selected_chapter != "All Chapters":
+             chapter_code = chapter_map[selected_chapter]
 
         difficulty_option = st.selectbox("Difficulty", ["All", "Easy", "Moderate", "Difficult"])
         difficulty_map = {"Easy": 1, "Moderate": 2, "Difficult": 3}
@@ -501,7 +592,7 @@ elif parent_mode == "Test/Practice":
 
         if not st.session_state.practice_active:
             if st.button("▶ Start Practice"):
-                questions = get_questions(subject=subject, difficulty=difficulty, order=order_type)
+                questions = get_questions(subject=subject, difficulty=difficulty, chapter_code=chapter_code, order=order_type)
                 if not questions:
                     st.warning("No questions found with selected filters.")
                     st.stop()
@@ -632,10 +723,40 @@ elif parent_mode == "Test/Practice":
         if not st.session_state.bulk_started:
             q_count = st.number_input("Enter number of questions per set", min_value=1, max_value=100, value=30)
             subject = st.selectbox("Select Subject (Optional)", ["All"] + SUBJECTS)
+            chapter_code = None
+
+            if subject != "All":
+
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    SELECT chapter_name,
+                           chapter_code
+                    FROM subject_chapters
+                    WHERE subject=%s
+                    ORDER BY chapter_name
+                    """,(subject,))
+
+               rows = cur.fetchall()
+
+            chapter_map = {
+                row[0]: row[1]
+                for row in rows
+            }
+
+            selected_chapter = st.selectbox(
+                "Select Chapter",
+                ["All Chapters"] + list(chapter_map.keys())
+            )
+
+           if selected_chapter != "All Chapters":
+                chapter_code = chapter_map[selected_chapter]
             if st.button("Start Practice"):
                 st.session_state.bulk_started = True
                 st.session_state.bulk_q_count = q_count
                 st.session_state.bulk_subject = subject
+                st.session_state.bulk_chapter_code = chapter_code
                 st.session_state.bulk_index = 0
                 st.session_state.practice_log = []
                 st.session_state.reviewed = 0
@@ -646,7 +767,10 @@ elif parent_mode == "Test/Practice":
             st.stop()
 
         subject = st.session_state.bulk_subject
-        questions = get_questions(subject=None if subject == "All" else subject)
+        questions = get_questions(
+                subject=None if subject == "All" else subject,
+                chapter_code=st.session_state.bulk_chapter_code
+        )
         if not questions:
             st.warning("No questions found")
             st.stop()
