@@ -551,7 +551,9 @@ elif parent_mode == "Test/Practice":
             # Fetch current linked chapter text in quiz if it exists
             cur.execute("SELECT chapters FROM quiz WHERE si_no = %s", (si_no,))
             quiz_row = cur.fetchone()
-            current_mapped_chapter = quiz_row[0] if quiz_row else None
+            cur.execute("SELECT chapter_name FROM subject_chapters WHERE subject_code = %s", (quiz_row,))
+            sub_quiz = cur.fetchone()
+            current_mapped_chapter = quiz_row[0] if sub_quiz else None
 
         # 2. Render Dropdown Menu safely
         chapter_options = ["None / Unassigned"] + [ch[0] for ch in db_chapters]
@@ -610,7 +612,7 @@ elif parent_mode == "Test/Practice":
             if st.button("⏹ End Practice"):
                 # AUTOMATIC SAVE ON FINISH
                 final_chapter_val = None if selected_chapter == "None / Unassigned" else selected_chapter
-                (si_no, final_chapter_val)
+                update_question_chapter(si_no, final_chapter_val)
                 
                 st.session_state.practice_active = False
                 st.session_state.show_summary = True
