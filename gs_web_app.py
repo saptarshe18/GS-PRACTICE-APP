@@ -508,8 +508,7 @@ elif parent_mode == "Test/Practice":
                 "Filter By Chapter"
             )
 
-           if filter_chapter:
-
+            if filter_chapter:
                 subject = st.selectbox(
                     "Select Subject",
                     SUBJECTS
