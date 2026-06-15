@@ -749,7 +749,7 @@ elif parent_mode == "Test/Practice":
                    ["All Chapters"] + list(chapter_map.keys())
                )
 
-           if selected_chapter != "All Chapters":
+            if selected_chapter != "All Chapters":
                 chapter_code = chapter_map[selected_chapter]
             if st.button("Start Practice"):
                 st.session_state.bulk_started = True
