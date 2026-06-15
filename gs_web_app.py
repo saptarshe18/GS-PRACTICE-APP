@@ -726,28 +726,28 @@ elif parent_mode == "Test/Practice":
 
             if subject != "All":
 
-            with get_connection() as conn:
-                cur = conn.cursor()
+               with get_connection() as conn:
+                    cur = conn.cursor()
 
-                cur.execute("""
-                    SELECT chapter_name,
-                           chapter_code
-                    FROM subject_chapters
-                    WHERE subject=%s
-                    ORDER BY chapter_name
+                    cur.execute("""
+                        SELECT chapter_name,
+                               chapter_code
+                        FROM subject_chapters
+                        WHERE subject=%s
+                        ORDER BY chapter_name
                     """,(subject,))
 
-               rows = cur.fetchall()
+                    rows = cur.fetchall()
 
-            chapter_map = {
-                row[0]: row[1]
-                for row in rows
-            }
+               chapter_map = {
+                 row[0]: row[1]
+                 for row in rows
+               }
 
-            selected_chapter = st.selectbox(
-                "Select Chapter",
-                ["All Chapters"] + list(chapter_map.keys())
-            )
+               selected_chapter = st.selectbox(
+                   "Select Chapter",
+                   ["All Chapters"] + list(chapter_map.keys())
+               )
 
            if selected_chapter != "All Chapters":
                 chapter_code = chapter_map[selected_chapter]
