@@ -215,11 +215,11 @@ if parent_mode == "Test/Practice":
     test_practice_option = st.sidebar.radio(
         "Test/Practice Options",
         [
+            "Dashboard", 
             "Subject Practice", 
             "Mixed Practice", 
             "Bulk Practice", 
             "Analytics", 
-            "Dashboard", 
             "Update Question", 
             "Insert Question", 
             "Import Question from txt", 
