@@ -167,13 +167,12 @@ if "reviewed" not in st.session_state:
 
 st.markdown("""
 <div style="
-    background-color:#FF9933;
+    background-color:#556CD6;
     padding:15px;
     border-radius:10px;
     text-align:center;
     color:white;
-    font-size:32px;
-    font-weight:bold;
+    font-size:25px;
 ">
     HELLO CIVIL SERVANT!
 </div>
