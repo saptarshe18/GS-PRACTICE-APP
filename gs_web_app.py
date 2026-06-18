@@ -866,10 +866,26 @@ elif parent_mode == "Test/Practice":
         if st.button("Load Question"):
             with get_connection() as conn:
                 cur = conn.cursor()
-                cur.execute("SELECT subject,question,answer,difficulty FROM quiz WHERE si_no = %s",(qid,))
+                cur.execute("""
+                    SELECT
+                        subject,
+                        question,
+                        answer,
+                        difficulty,
+                        chapters
+                    FROM quiz
+                    WHERE si_no = %s
+                """,(qid,))
                 row = cur.fetchone()
             if row:
-                st.session_state.edit_data = {"id":qid, "subject":row[0], "question":row[1], "answer":row[2], "difficulty":row[3]}
+                st.session_state.edit_data = {
+                    "id": qid,
+                    "subject": row[0],
+                    "question": row[1],
+                    "answer": row[2],
+                    "difficulty": row[3],
+                    "chapter_code": row[4]
+                }
             else:
                 st.error("Question not found.")
         
@@ -877,7 +893,60 @@ elif parent_mode == "Test/Practice":
             data = st.session_state.edit_data
             new_question = st.text_area("Question",value=data["question"])
             new_answer = st.text_area("Answer",value=data["answer"])
-            new_subject = st.selectbox("Subject", SUBJECTS, index=SUBJECTS.index(data["subject"]))
+            new_subject = st.selectbox(
+                "Subject",
+                SUBJECTS,
+                index=SUBJECTS.index(data["subject"])
+            )
+
+            # Load chapters for selected subject
+            with get_connection() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    SELECT
+                        chapter_name,
+                        chapter_code
+                        FROM subject_chapters
+                    WHERE subject = %s
+                    ORDER BY chapter_name
+                """,(new_subject,))
+
+                rows = cur.fetchall()
+
+            chapter_map = {
+                row[0]: row[1]
+                for row in rows
+            }
+
+            reverse_chapter_map = {
+                row[1]: row[0]
+                for row in rows
+            }
+
+            current_chapter_name = reverse_chapter_map.get(
+                data["chapter_code"],
+                "No Chapter"
+            )
+
+            chapter_options = ["No Chapter"] + list(chapter_map.keys())
+
+            default_index = 0
+
+            if current_chapter_name in chapter_options:
+                default_index = chapter_options.index(current_chapter_name)
+
+            selected_chapter = st.selectbox(
+                "Chapter",
+                chapter_options,
+                index=default_index
+            )
+
+            selected_chapter_code = None
+
+            if selected_chapter != "No Chapter":
+                selected_chapter_code = chapter_map[selected_chapter]
+                
             difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
             reverse_map = {1:"Easy",2:"Moderate",3:"Difficult"}
             difficulty_label = st.selectbox("Difficulty", ["Easy","Moderate","Difficult"], index=["Easy","Moderate","Difficult"].index(reverse_map[data["difficulty"]]))
@@ -887,31 +956,126 @@ elif parent_mode == "Test/Practice":
                 if st.button("Save Changes"):
                     with get_connection() as conn:
                         cur = conn.cursor()
-                        cur.execute("UPDATE quiz SET subject=%s, question=%s, answer=%s, difficulty=%s WHERE si_no=%s",(new_subject, new_question.strip(), new_answer.strip(), difficulty_map[difficulty_label], data["id"]))
-                        conn.commit()
-                    st.success("Question updated successfully.")
+                        cur.execute("""
+                            UPDATE quiz
+                            SET subject=%s,
+                                chapters=%s,
+                                question=%s,
+                                answer=%s,
+                                difficulty=%s
+                                WHERE si_no=%s
+                        """,
+                        (
+                                new_subject,
+                                selected_chapter_code,
+                                new_question.strip(),
+                                new_answer.strip(),
+                                difficulty_map[difficulty_label],
+                                data["id"]
+                        ))
                     st.session_state.pop("edit_data",None)
                     st.rerun()
 
     # 2.7) Insert Question
+
     elif test_practice_option == "Insert Question":
+
         st.subheader("➕ Insert New Question")
+
         question = st.text_area("Enter Question", key="insert_question")
         answer = st.text_area("Enter Answer", key="insert_answer")
-        subject = st.selectbox("Select Subject", SUBJECTS)
-        difficulty_label = st.selectbox("Difficulty", ["Easy", "Moderate", "Difficult"])
-        difficulty_map = {"Easy":1,"Moderate":2,"Difficult":3}
-        
+
+        subject = st.selectbox(
+            "Select Subject",
+            SUBJECTS
+        )
+
+        # ----------------------------
+        # Fetch chapters for subject
+        # ----------------------------
+        with get_connection() as conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT chapter_name,
+                       chapter_code
+                FROM subject_chapters
+                WHERE subject = %s
+                ORDER BY chapter_name
+            """, (subject,))
+
+            rows = cur.fetchall()
+
+        chapter_map = {
+            row[0]: row[1]
+            for row in rows
+        }
+
+        selected_chapter = st.selectbox(
+            "Select Chapter",
+            ["No Chapter"] + list(chapter_map.keys())
+        )
+
+        chapter_code = None
+
+        if selected_chapter != "No Chapter":
+            chapter_code = chapter_map[selected_chapter]
+
+        difficulty_label = st.selectbox(
+            "Difficulty",
+            ["Easy", "Moderate", "Difficult"]
+        )
+
+        difficulty_map = {
+            "Easy": 1,
+            "Moderate": 2,
+            "Difficult": 3
+        }
+
         if st.button("💾 Save Question"):
+
             if not question.strip() or not answer.strip():
                 st.error("Question and Answer cannot be empty.")
+
             else:
+
                 with get_connection() as conn:
                     cur = conn.cursor()
-                    cur.execute("INSERT INTO quiz (subject,question,answer,difficulty) VALUES (%s,%s,%s,%s) RETURNING si_no",(subject, question.strip(), answer.strip(), difficulty_map[difficulty_label]))
+
+                    cur.execute("""
+                        INSERT INTO quiz
+                        (
+                            subject,
+                            chapters,
+                            question,
+                            answer,
+                            difficulty
+                        )
+                        VALUES
+                        (
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s
+                        )
+                        RETURNING si_no
+                    """,
+                    (
+                        subject,
+                        chapter_code,
+                        question.strip(),
+                        answer.strip(),
+                        difficulty_map[difficulty_label]
+                    ))
+
                     inserted_id = cur.fetchone()[0]
                     conn.commit()
-                st.success(f"Question added successfully! ID: {inserted_id}")
+
+                st.success(
+                    f"Question added successfully! ID: {inserted_id}"
+                )
+
                 st.rerun()
 
     # 2.8) Import Question from txt
