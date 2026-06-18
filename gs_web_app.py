@@ -9,6 +9,8 @@ import time
 
 from supabase import create_client
 
+st.set_page_config( page_title="HELLO CIVIL SERVANT!", page_icon="🎯", layout="wide" )
+
 # =====================================================
 # SUBJECT LIST
 # =====================================================
@@ -160,8 +162,31 @@ if "reviewed" not in st.session_state:
     st.session_state.reviewed = 0
 
 # =====================================================
+# APPLICATION HEADER
+# =====================================================
+
+st.markdown("""
+<div style="
+    background-color:#FF9933;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+    color:white;
+    font-size:32px;
+    font-weight:bold;
+">
+    HELLO CIVIL SERVANT!
+</div>
+""", unsafe_allow_html=True)
+
+# =====================================================
 # SIDEBAR NAVIGATION (MODES Restructuring)
 # =====================================================
+
+st.sidebar.markdown("""
+# 🎯 HELLO CIVIL SERVANT!
+---
+""")
 
 st.sidebar.success(f"Logged in as {st.session_state.role}")
 
@@ -836,6 +861,17 @@ elif parent_mode == "Test/Practice":
 
     # 2.5) Dashboard
     elif test_practice_option == "Dashboard":
+        st.markdown("""
+        # 👋 Welcome Civil Servant!
+
+        Stay Consistent.
+        Stay Curious.
+        Stay Disciplined.
+
+        Every Question Practiced Today
+        Brings You Closer To Service Tomorrow.
+        """)
+        
         st.subheader("📊 User Dashboard")
         user_id = st.session_state.user_id
         role = st.session_state.role
