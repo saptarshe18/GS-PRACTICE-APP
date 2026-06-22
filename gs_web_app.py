@@ -174,7 +174,7 @@ st.markdown("""
     color:white;
     font-size:25px;
 ">
-    HELLO CIVIL SERVANT!
+    HelloCIVILServant!
 </div>
 """, unsafe_allow_html=True)
 
