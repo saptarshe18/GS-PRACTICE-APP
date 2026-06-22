@@ -9,7 +9,7 @@ import time
 
 from supabase import create_client
 
-st.set_page_config( page_title="HELLO CIVIL SERVANT!", page_icon="🎯", layout="wide" )
+st.set_page_config( page_title="HelloCIVILServant!", page_icon="🎯", layout="wide" )
 
 # =====================================================
 # SUBJECT LIST
