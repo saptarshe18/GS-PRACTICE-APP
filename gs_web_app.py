@@ -503,7 +503,256 @@ if parent_mode == "Notes":
             if note[3]:
                 st.image(note[3])
 
-    # Remaining management modes inside notes can extend below...
+    elif notes_menu == "Manage Subjects":
+
+    st.subheader("📘 Subject Management")
+
+    new_subject = st.text_input("New Subject")
+
+    if st.button("Add Subject"):
+
+        if new_subject.strip():
+
+            add_subject(new_subject)
+
+            st.success("Subject Added")
+            st.rerun()
+
+    subjects = get_all_subjects()
+
+    for sub in subjects:
+
+        col1, col2 = st.columns([4,1])
+
+        with col1:
+
+            updated_name = st.text_input(
+                "Subject",
+                value=sub[1],
+                key=f"sub_{sub[0]}"
+            )
+
+            if st.button(
+                "Update",
+                key=f"upd_sub_{sub[0]}"
+            ):
+
+                update_subject(
+                    sub[0],
+                    updated_name
+                )
+
+                st.success("Updated")
+                st.rerun()
+
+        with col2:
+
+            if st.button(
+                "Delete",
+                key=f"del_sub_{sub[0]}"
+            ):
+
+                delete_subject(sub[0])
+
+                st.success("Deleted")
+                st.rerun()
+    elif notes_menu == "Manage Chapters":
+
+    st.subheader("📗 Chapter Management")
+
+    subjects = get_all_subjects()
+
+    if not subjects:
+        st.warning("No subjects available")
+        st.stop()
+
+    subject_map = {
+        s[1]: s[0]
+        for s in subjects
+    }
+
+    selected_subject = st.selectbox(
+        "Select Subject",
+        list(subject_map.keys())
+    )
+
+    subject_id = subject_map[selected_subject]
+
+    new_chapter = st.text_input("New Chapter")
+
+    if st.button("Add Chapter"):
+
+        if new_chapter.strip():
+
+            add_chapter(
+                subject_id,
+                new_chapter
+            )
+
+            st.success("Chapter Added")
+            st.rerun()
+
+    chapters = get_chapters(subject_id)
+
+    for chap in chapters:
+
+        col1, col2 = st.columns([4,1])
+
+        with col1:
+
+            updated_name = st.text_input(
+                "Chapter",
+                value=chap[2],
+                key=f"chap_{chap[0]}"
+            )
+
+            if st.button(
+                "Update",
+                key=f"upd_chap_{chap[0]}"
+            ):
+
+                update_chapter(
+                    chap[0],
+                    updated_name
+                )
+
+                st.success("Updated")
+                st.rerun()
+
+        with col2:
+
+            if st.button(
+                "Delete",
+                key=f"del_chap_{chap[0]}"
+            ):
+
+                delete_chapter(chap[0])
+
+                st.success("Deleted")
+                st.rerun()
+
+  elif notes_menu == "Manage Notes":
+
+    st.subheader("📝 Notes")
+
+    subjects = get_all_subjects()
+
+    if not subjects:
+        st.warning("No subjects found")
+        st.stop()
+
+    subject_map = {
+        s[1]: s[0]
+        for s in subjects
+    }
+
+    selected_subject = st.selectbox(
+        "Subject",
+        list(subject_map.keys())
+    )
+
+    subject_id = subject_map[selected_subject]
+
+    chapters = get_chapters(subject_id)
+
+    if not chapters:
+        st.warning("No chapters found")
+        st.stop()
+
+    chapter_map = {
+        c[2]: c[0]
+        for c in chapters
+    }
+
+    selected_chapter = st.selectbox(
+        "Chapter",
+        list(chapter_map.keys())
+    )
+
+    chapter_id = chapter_map[selected_chapter]
+
+    note_text = st.text_area(
+        "Append to Chapter Notes",
+        height=300
+    )
+
+    uploaded_image = st.file_uploader(
+        "Upload Image",
+        type=["png", "jpg", "jpeg"]
+    )
+
+    if st.button("Save Note"):
+
+        image_url = None
+
+        if uploaded_image:
+            image_url = upload_note_image(uploaded_image)
+
+        add_note(
+            chapter_id,
+            note_text,
+            image_url
+        )
+
+        st.success("Note Saved")
+        st.rerun()
+
+    notes = get_notes(chapter_id)
+
+    if notes:
+
+        note = notes[0]
+
+        updated_text = st.text_area(
+            "Edit Note",
+            value=note[2] or "",
+            key=f"note_{note[0]}"
+        )
+
+        if note[3]:
+            st.image(note[3], width=400)
+
+        new_image = st.file_uploader(
+            "Replace Image",
+            type=["png","jpg","jpeg"],
+            key=f"img_{note[0]}"
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            if st.button(
+                "Update",
+                key=f"upd_{note[0]}"
+            ):
+
+                image_url = note[3]
+
+                if new_image:
+                    image_url = upload_note_image(new_image)
+
+                update_note(
+                    note[0],
+                    updated_text,
+                    image_url
+                )
+
+                st.success("Updated")
+                st.rerun()
+
+        with col2:
+
+            if st.button(
+                "Delete",
+                key=f"del_note_{note[0]}"
+            ):
+
+                delete_note(note[0])
+
+                st.success("Deleted")
+                st.rerun()
+
 
 # ============================================================
 # 2) TEST/PRACTICE PARENT MODE
