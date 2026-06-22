@@ -183,7 +183,7 @@ st.markdown("""
 # =====================================================
 
 st.sidebar.markdown("""
-# 🎯 HELLO CIVIL SERVANT!
+# 🎯 HelloCIVILServant!
 ---
 """)
 
