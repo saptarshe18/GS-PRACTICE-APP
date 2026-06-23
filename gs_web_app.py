@@ -632,127 +632,127 @@ if parent_mode == "Notes":
                     st.success("Deleted")
                     st.rerun()
 
-elif notes_menu == "Manage Notes":
+    elif notes_menu == "Manage Notes":
 
-    st.subheader("📝 Notes")
+        st.subheader("📝 Notes")
 
-    subjects = get_all_subjects()
+        subjects = get_all_subjects()
 
-    if not subjects:
-        st.warning("No subjects found")
-        st.stop()
+        if not subjects:
+            st.warning("No subjects found")
+            st.stop()
 
-    subject_map = {
-        s[1]: s[0]
-        for s in subjects
-    }
+        subject_map = {
+            s[1]: s[0]
+            for s in subjects
+        }
 
-    selected_subject = st.selectbox(
-        "Subject",
-        list(subject_map.keys())
-    )
-
-    subject_id = subject_map[selected_subject]
-
-    chapters = get_chapters(subject_id)
-
-    if not chapters:
-        st.warning("No chapters found")
-        st.stop()
-
-    chapter_map = {
-        c[2]: c[0]
-        for c in chapters
-    }
-
-    selected_chapter = st.selectbox(
-        "Chapter",
-        list(chapter_map.keys())
-    )
-
-    chapter_id = chapter_map[selected_chapter]
-
-    note_text = st.text_area(
-        "Append to Chapter Notes",
-        height=300
-    )
-
-    uploaded_image = st.file_uploader(
-        "Upload Image",
-        type=["png", "jpg", "jpeg"]
-    )
-
-    if st.button("Save Note"):
-
-        image_url = None
-
-        if uploaded_image:
-            image_url = upload_note_image(uploaded_image)
-
-        add_note(
-            chapter_id,
-            note_text,
-            image_url
+        selected_subject = st.selectbox(
+            "Subject",
+            list(subject_map.keys())
         )
 
-        st.success("Note Saved")
-        st.rerun()
+        subject_id = subject_map[selected_subject]
 
-    notes = get_notes(chapter_id)
+        chapters = get_chapters(subject_id)
 
-    if notes:
+        if not chapters:
+            st.warning("No chapters found")
+            st.stop()
 
-        note = notes[0]
+        chapter_map = {
+            c[2]: c[0]
+            for c in chapters
+        }
 
-        updated_text = st.text_area(
-            "Edit Note",
-            value=note[2] or "",
-            key=f"note_{note[0]}"
+        selected_chapter = st.selectbox(
+            "Chapter",
+            list(chapter_map.keys())
         )
 
-        if note[3]:
-            st.image(note[3], width=400)
+        chapter_id = chapter_map[selected_chapter]
 
-        new_image = st.file_uploader(
-            "Replace Image",
-            type=["png","jpg","jpeg"],
-            key=f"img_{note[0]}"
+        note_text = st.text_area(
+            "Append to Chapter Notes",
+            height=300
         )
 
-        col1, col2 = st.columns(2)
+        uploaded_image = st.file_uploader(
+            "Upload Image",
+            type=["png", "jpg", "jpeg"]
+        )
 
-        with col1:
+        if st.button("Save Note"):
 
-            if st.button(
-                "Update",
-                key=f"upd_{note[0]}"
-            ):
+            image_url = None
 
-                image_url = note[3]
+            if uploaded_image:
+                image_url = upload_note_image(uploaded_image)
 
-                if new_image:
-                    image_url = upload_note_image(new_image)
+            add_note(
+                chapter_id,
+                note_text,
+                image_url
+            )
 
-                update_note(
-                    note[0],
-                    updated_text,
-                    image_url
-                )
+            st.success("Note Saved")
+            st.rerun()
 
-                st.success("Updated")
-                st.rerun()
+        notes = get_notes(chapter_id)
 
-        with col2:
+        if notes:
 
-            if st.button(
-                "Delete",
-                key=f"del_note_{note[0]}"
-            ):
+            note = notes[0]
 
-                delete_note(note[0])
+            updated_text = st.text_area(
+                "Edit Note",
+                value=note[2] or "",
+                key=f"note_{note[0]}"
+            )
 
-                st.success("Deleted")
-                st.rerun()
+            if note[3]:
+                st.image(note[3], width=400)
+
+            new_image = st.file_uploader(
+                "Replace Image",
+                type=["png","jpg","jpeg"],
+                key=f"img_{note[0]}"
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                if st.button(
+                    "Update",
+                    key=f"upd_{note[0]}"
+                ):
+
+                    image_url = note[3]
+
+                    if new_image:
+                        image_url = upload_note_image(new_image)
+
+                    update_note(
+                        note[0],
+                        updated_text,
+                        image_url
+                    )
+
+                    st.success("Updated")
+                    st.rerun()
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_note_{note[0]}"
+                ):
+
+                    delete_note(note[0])
+
+                    st.success("Deleted")
+                    st.rerun()
 
 
 # ============================================================
