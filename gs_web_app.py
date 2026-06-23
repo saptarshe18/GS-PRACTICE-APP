@@ -505,131 +505,132 @@ if parent_mode == "Notes":
 
     elif notes_menu == "Manage Subjects":
 
-    st.subheader("📘 Subject Management")
+        st.subheader("📘 Subject Management")
 
-    new_subject = st.text_input("New Subject")
+        new_subject = st.text_input("New Subject")
 
-    if st.button("Add Subject"):
+        if st.button("Add Subject"):
 
-        if new_subject.strip():
+            if new_subject.strip():
 
-            add_subject(new_subject)
+                add_subject(new_subject)
 
-            st.success("Subject Added")
-            st.rerun()
+                st.success("Subject Added")
+                st.rerun()
 
-    subjects = get_all_subjects()
+        subjects = get_all_subjects()
 
-    for sub in subjects:
+        for sub in subjects:
 
-        col1, col2 = st.columns([4,1])
+            col1, col2 = st.columns([4,1])
 
-        with col1:
+            with col1:
 
-            updated_name = st.text_input(
-                "Subject",
-                value=sub[1],
-                key=f"sub_{sub[0]}"
-            )
-
-            if st.button(
-                "Update",
-                key=f"upd_sub_{sub[0]}"
-            ):
-
-                update_subject(
-                    sub[0],
-                    updated_name
+                updated_name = st.text_input(
+                    "Subject",
+                    value=sub[1],
+                    key=f"sub_{sub[0]}"
                 )
 
-                st.success("Updated")
-                st.rerun()
+                if st.button(
+                    "Update",
+                    key=f"upd_sub_{sub[0]}"
+                ):
 
-        with col2:
+                    update_subject(
+                        sub[0],
+                        updated_name
+                    )
 
-            if st.button(
-                "Delete",
-                key=f"del_sub_{sub[0]}"
-            ):
+                    st.success("Updated")
+                    st.rerun()
 
-                delete_subject(sub[0])
+            with col2:
 
-                st.success("Deleted")
-                st.rerun()
+                if st.button(
+                    "Delete",
+                    key=f"del_sub_{sub[0]}"
+                ):
+
+                    delete_subject(sub[0])
+
+                    st.success("Deleted")
+                    st.rerun()
+                    
     elif notes_menu == "Manage Chapters":
 
-    st.subheader("📗 Chapter Management")
+        st.subheader("📗 Chapter Management")
 
-    subjects = get_all_subjects()
+        subjects = get_all_subjects()
 
-    if not subjects:
-        st.warning("No subjects available")
-        st.stop()
+        if not subjects:
+            st.warning("No subjects available")
+            st.stop()
 
-    subject_map = {
-        s[1]: s[0]
-        for s in subjects
-    }
+        subject_map = {
+            s[1]: s[0]
+            for s in subjects
+        }
 
-    selected_subject = st.selectbox(
-        "Select Subject",
-        list(subject_map.keys())
-    )
+        selected_subject = st.selectbox(
+            "Select Subject",
+            list(subject_map.keys())
+        )
 
-    subject_id = subject_map[selected_subject]
+        subject_id = subject_map[selected_subject]
 
-    new_chapter = st.text_input("New Chapter")
+        new_chapter = st.text_input("New Chapter")
 
-    if st.button("Add Chapter"):
+        if st.button("Add Chapter"):
 
-        if new_chapter.strip():
+            if new_chapter.strip():
 
-            add_chapter(
-                subject_id,
-                new_chapter
-            )
-
-            st.success("Chapter Added")
-            st.rerun()
-
-    chapters = get_chapters(subject_id)
-
-    for chap in chapters:
-
-        col1, col2 = st.columns([4,1])
-
-        with col1:
-
-            updated_name = st.text_input(
-                "Chapter",
-                value=chap[2],
-                key=f"chap_{chap[0]}"
-            )
-
-            if st.button(
-                "Update",
-                key=f"upd_chap_{chap[0]}"
-            ):
-
-                update_chapter(
-                    chap[0],
-                    updated_name
+                add_chapter(
+                    subject_id,
+                    new_chapter
                 )
 
-                st.success("Updated")
+                st.success("Chapter Added")
                 st.rerun()
 
-        with col2:
+        chapters = get_chapters(subject_id)
 
-            if st.button(
-                "Delete",
-                key=f"del_chap_{chap[0]}"
-            ):
+        for chap in chapters:
 
-                delete_chapter(chap[0])
+            col1, col2 = st.columns([4,1])
 
-                st.success("Deleted")
-                st.rerun()
+            with col1:
+
+                updated_name = st.text_input(
+                    "Chapter",
+                    value=chap[2],
+                    key=f"chap_{chap[0]}"
+                )
+
+                if st.button(
+                    "Update",
+                    key=f"upd_chap_{chap[0]}"
+                ):
+
+                    update_chapter(
+                        chap[0],
+                        updated_name
+                    )
+
+                    st.success("Updated")
+                    st.rerun()
+
+            with col2:
+
+                if st.button(
+                    "Delete",
+                    key=f"del_chap_{chap[0]}"
+                ):
+
+                    delete_chapter(chap[0])
+
+                    st.success("Deleted")
+                    st.rerun()
 
   elif notes_menu == "Manage Notes":
 
