@@ -632,7 +632,7 @@ if parent_mode == "Notes":
                     st.success("Deleted")
                     st.rerun()
 
-  elif notes_menu == "Manage Notes":
+elif notes_menu == "Manage Notes":
 
     st.subheader("📝 Notes")
 
